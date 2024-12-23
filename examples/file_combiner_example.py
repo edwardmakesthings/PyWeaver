@@ -1,13 +1,60 @@
 """Example usage of the file combiner.
 
-Demonstrates various ways to use the file combiner, from simple
-combining to advanced configuration with different handling modes.
+Demonstrates various approaches to combining files, each suited for
+different use cases:
+
+1. Basic Usage (quick_combine):
+   - Best for simple file combining needs
+   - Combines all matching files in a directory
+   - Uses default settings for handling content
+   - Ideal for quick documentation tasks
+   - Good for creating simple combined outputs
+
+2. Advanced Usage (create_combiner):
+   - Perfect for complex combining needs
+   - Supports multiple file patterns
+   - Can exclude specific paths/patterns
+   - Allows preview before combining
+   - Can generate directory structure
+   - Ideal for creating comprehensive documentation
+
+3. Different Modes:
+   - Shows how different handling modes affect output
+   - FULL: Keeps all content including comments
+   - NO_COMMENTS: Removes comments but keeps docstrings
+   - NO_DOCSTRINGS: Keeps comments but removes docstrings
+   - MINIMAL: Removes both comments and docstrings
+   - Good for understanding content handling options
+
+4. Selective Combining:
+   - Best for targeted file combining
+   - Can focus on specific file types
+   - Supports complex pattern matching
+   - Good for creating focused documentation
+   - Ideal for specific subsystem documentation
+   - Useful for combining related files only
+
+Common Use Cases:
+1. Documentation Generation:
+   - Combining source files for documentation
+   - Creating searchable codebases
+   - Generating training materials
+
+2. Code Analysis:
+   - Combining files for analysis tools
+   - Creating full project overviews
+   - Supporting code reviews
+
+3. Distribution:
+   - Creating single-file versions of multi-file projects
+   - Preparing code for sharing or publication
+   - Creating backup consolidations
 
 Path: examples/file_combiner_example.py
 """
 
 from pathlib import Path
-from tools.project_tools.file_combiner import (
+from pyweaver.file_combiner import (
     create_combiner,
     quick_combine,
     FileHandlingMode,

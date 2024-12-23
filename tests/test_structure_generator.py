@@ -12,7 +12,7 @@ import tempfile
 import shutil
 from typing import Generator, Any
 
-from tools.project_tools.structure_gen import (
+from pyweaver.structure_generator import (
     create_generator,
     OutputFormat,
     StructureConfig

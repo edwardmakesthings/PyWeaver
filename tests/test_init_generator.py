@@ -13,7 +13,7 @@ import tempfile
 import textwrap
 from typing import Generator, Any
 
-from tools.project_tools.init_generator import (
+from pyweaver.init_generator import (
     create_generator,
     ExportCollectionMode,
     InitGeneratorConfig

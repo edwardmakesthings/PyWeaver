@@ -1,17 +1,39 @@
 """Example usage of the structure generator.
 
-This example demonstrates various ways to use the structure generator,
-from simple one-shot generation to more complex configurations.
+This example demonstrates various ways to use the structure generator, from simple
+one-shot generation to more complex configurations. Each approach is suited for
+different use cases:
+
+1. Basic Usage (quick_generate):
+   - Best for quick, one-off structure documentation
+   - Ideal for small to medium projects
+   - Good for generating simple documentation quickly
+   - Uses sensible defaults for most options
+   - Output is in tree format by default
+
+2. Advanced Usage (create_generator):
+   - Perfect for projects needing specific customization
+   - Ideal when you need to exclude certain paths/patterns
+   - Useful when you want to preview before generating
+   - Supports custom output formats (tree, markdown, plain)
+   - Can show file sizes and limit directory depth
+   - Good for generating documentation that will be maintained
+
+3. Multiple Formats:
+   - Useful when documentation needs to serve multiple purposes
+   - Tree format: Best for command line viewing
+   - Markdown format: Ideal for GitHub/GitLab documentation
+   - Plain format: Good for processing with other tools
+   - Can generate all formats from the same configuration
 
 Path: examples/structure_generator_example.py
 """
 
 from pathlib import Path
-from tools.project_tools.structure_gen import (
+from pyweaver.structure_generator import (
     create_generator,
     quick_generate,
-    OutputFormat,
-    StructureConfig
+    OutputFormat
 )
 
 def basic_usage():

@@ -12,7 +12,7 @@ import tempfile
 import textwrap
 from typing import Generator, Any
 
-from tools.project_tools.file_combiner import (
+from pyweaver.file_combiner import (
     create_combiner,
     quick_combine,
     FileHandlingMode,
