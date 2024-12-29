@@ -1,91 +1,63 @@
-"""
-Project tools for code generation and management.
-
-Provides utilities for managing Python projects including init file generation,
-file combining, and structure documentation.
-
-Path: pyweaver/__init__.py
-"""
-
-__version__ = '0.1.0'
-
-from .common.type_definitions import (
-    GeneratorError,
-    GeneratorMode,
-    GeneratorOptions,
-    GeneratorResult,
-    ProcessingError,
-    ValidationError,
-)
-
-from .file_combiner import (
-    FileCombiner,
-    CombinerConfig,
-    FileHandlingMode,
-    create_combiner,
-    quick_combine
-)
-
-from .init_generator import (
-    InitGenerator,
-    InitGeneratorConfig,
-    ExportCollectionMode,
-    create_generator as create_init_generator,
-    preview_generator,
-
-    ConfigSectionSettings,
-    ConfigInlineContent,
+from .init import (
+    ImportOrderPolicy,
+    ImportSection,
+    ExportMode,
+    SectionConfig,
+    InlineContent,
     PackageConfig,
-    ConfigGenerator,
-    create_config_generator,
-    quick_generate_from_config
+    InitConfig
 )
 
-from .structure_generator import (
-    StructureGenerator,
-    StructureConfig,
-    OutputFormat,
-    create_generator as create_structure_generator,
-    quick_generate
+from .processors import (
+    InitFileProcessor
+)
+
+from .utils import (
+    ModuleInfo,
+    ModuleAnalyzer,
+    PatternMatcher,
+    comprehensive_repr
+)
+
+from .common.base import (
+    ProcessorResult,
+    ProcessorError,
+    BaseProcessor
+)
+
+from .config.path import (
+    PathConfigSettings,
+    PathConfig
+)
+
+from .common.tracking import (
+    TrackerType,
+    FileTracker
 )
 
 __all__ = [
-    # Version
-    "__version__",
+    'ImportOrderPolicy',
+    'ImportSection',
+    'ExportMode',
+    'SectionConfig',
+    'InlineContent',
+    'PackageConfig',
+    'InitConfig',
 
-    # Common types
-    "GeneratorError",
-    "GeneratorMode",
-    "GeneratorOptions",
-    "GeneratorResult",
-    "ProcessingError",
-    "ValidationError",
+    'InitFileProcessor',
 
-    # File combiner
-    "FileCombiner",
-    "CombinerConfig",
-    "FileHandlingMode",
-    "create_combiner",
-    "quick_combine",
+    'ModuleInfo',
+    'ModuleAnalyzer',
+    'PatternMatcher',
+    'comprehensive_repr',
 
-    # Init generator
-    "InitGenerator",
-    "InitGeneratorConfig",
-    "ExportCollectionMode",
-    "create_init_generator",
-    "preview_generator",
+    'ProcessorResult',
+    'ProcessorError',
+    'BaseProcessor',
 
-    "ConfigSectionSettings",
-    "ConfigInlineContent",
-    "PackageConfig",
-    "ConfigGenerator",
-    "create_config_generator",
-    "quick_generate_from_config",
+    'PathConfigSettings',
+    'PathConfig',
 
-    # Structure generator
-    "StructureGenerator",
-    "StructureConfig",
-    "OutputFormat",
-    "create_structure_generator",
-    "quick_generate"
+    'TrackerType',
+    'FileTracker'
 ]

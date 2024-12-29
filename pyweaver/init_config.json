@@ -1,0 +1,176 @@
+{
+    "// Configuration Overview": "This file defines the default configuration for __init__.py file generation.",
+    "// Usage": "Place this file in your project root as 'init_config.json' or specify a custom path.",
+
+    "global_settings": {
+        "// Documentation": "These settings apply to all __init__.py files unless overridden",
+
+        "docstring": "Auto-generated __init__.py file for the {package} package.\n\nThis file is managed automatically. Please do not modify directly.",
+
+        "order_policy": {
+            "// Documentation": "Controls how imports are ordered within init files",
+            "value": "dependency_first",
+            "// Options": [
+                "dependency_first - Orders based on dependency graph",
+                "alphabetical - Simple alphabetical ordering",
+                "custom - Uses custom_order list below",
+                "length - Orders by import statement length"
+            ]
+        },
+
+        "exports_blacklist": [
+            "// Documentation: Names that should never be exported",
+            "_internal_function",
+            "TEST_*",
+            "*_test"
+        ],
+
+        "excluded_paths": [
+            "// Documentation: Paths that should not have init files generated",
+            "tests/**/*",
+            "**/__pycache__",
+            "**/.git",
+            "**/build",
+            "**/dist"
+        ],
+
+        "collect_from_submodules": {
+            "// Documentation": "Whether to collect exports from submodule __init__.py files",
+            "value": true
+        },
+
+        "include_submodules": {
+            "// Documentation": "List of submodules to specifically include (if empty, includes all)",
+            "value": null
+        },
+
+        "sections": {
+            "// Documentation": "Configuration for different sections in init files",
+
+            "classes": {
+                "enabled": true,
+                "order": 1,
+                "header_comment": "# Class imports",
+                "footer_comment": null,
+                "separator": "\n",
+                "include_patterns": [
+                    "*Controller",
+                    "*Service",
+                    "*Model"
+                ],
+                "exclude_patterns": [
+                    "_*",
+                    "*Test*"
+                ]
+            },
+
+            "functions": {
+                "enabled": true,
+                "order": 2,
+                "header_comment": "# Function imports",
+                "separator": "\n",
+                "include_patterns": [],
+                "exclude_patterns": ["_*"]
+            },
+
+            "constants": {
+                "enabled": true,
+                "order": 0,
+                "header_comment": "# Constant imports",
+                "include_patterns": [
+                    "*_CONSTANT",
+                    "*_CONFIG",
+                    "DEFAULT_*"
+                ]
+            },
+
+            "type_definitions": {
+                "enabled": true,
+                "order": 0,
+                "header_comment": "# Type definitions",
+                "include_patterns": [
+                    "*Type",
+                    "*Config"
+                ]
+            }
+        },
+
+        "inline_content": {
+            "// Documentation": "Custom content to inject into init files",
+
+            "version": {
+                "code": "__version__ = '1.0.0'\n",
+                "order": 0,
+                "section": null,
+                "before_imports": true
+            },
+
+            "logger": {
+                "code": "import logging\nlogger = logging.getLogger(__name__)\n",
+                "order": 1,
+                "before_imports": true
+            }
+        },
+
+        "custom_order": {
+            "// Documentation": "Custom import ordering (used when order_policy is 'custom')",
+            "value": [
+                "config",
+                "utils",
+                "models",
+                "services",
+                "controllers"
+            ]
+        },
+
+        "dependencies": {
+            "// Documentation": "Additional module dependencies to consider",
+            "value": []
+        },
+
+        "exact_path_only": {
+            "// Documentation": "Whether to match paths exactly or allow wildcards",
+            "value": false
+        },
+
+        "export_mode": {
+            "// Documentation": "How to determine what to export",
+            "value": "all_public",
+            "// Options": [
+                "explicit - Only items in __all__",
+                "all_public - All non-underscore names",
+                "custom - Uses custom export rules"
+            ]
+        }
+    },
+
+    "path_specific": {
+        "// Documentation": "Override settings for specific paths",
+
+        "src/core": {
+            "docstring": "Core functionality for the project.",
+            "order_policy": "dependency_first",
+            "collect_from_submodules": true
+        },
+
+        "src/controllers": {
+            "docstring": "Controller implementations.",
+            "sections": {
+                "classes": {
+                    "include_patterns": ["*Controller"]
+                }
+            }
+        },
+
+        "src/utils": {
+            "docstring": "Utility functions and helpers.",
+            "order_policy": "alphabetical",
+            "sections": {
+                "functions": {
+                    "enabled": true,
+                    "header_comment": "# Utility functions"
+                }
+            }
+        }
+    }
+}

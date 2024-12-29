@@ -1,31 +1,48 @@
-"""Common utilities and base classes.
-
-Provides shared functionality and type definitions used across the project.
-
-Path: pyweaver/common/__init__.py
-"""
-
-from .type_definitions import (
-    GeneratorError,
-    GeneratorMode,
-    GeneratorOptions,
-    GeneratorResult,
+"""Common module for pyweaver package."""
+from .base import (
+    ProcessorState,
+    ProcessorProgress,
+    ProcessorResult,
+    BaseProcessor
+)
+from .errors import (
+    ErrorCategory,
+    ErrorCode,
+    ErrorContext,
     ProcessingError,
-    ValidationError,
-    ProcessingContext,
-    ValidationResult
+    FileError,
+    ConfigError,
+    StateError,
+    ValidationError
+)
+from .tracking import (
+    TrackerType,
+    TrackerState,
+    ItemStatus,
+    TrackedItem,
+    TrackerStats,
+    FileTracker
 )
 
-from .base_processor import BaseProcessor
-
 __all__ = [
-    "BaseProcessor",
-    "GeneratorError",
-    "GeneratorMode",
-    "GeneratorOptions",
-    "GeneratorResult",
-    "ProcessingContext",
-    "ProcessingError",
-    "ValidationError",
-    "ValidationResult"
+    'ProcessorState',
+    'ProcessorProgress',
+    'ProcessorResult',
+    'BaseProcessor',
+
+    'ErrorCategory',
+    'ErrorCode',
+    'ErrorContext',
+    'ProcessingError',
+    'FileError',
+    'ConfigError',
+    'StateError',
+    'ValidationError',
+
+    'TrackerType',
+    'TrackerState',
+    'ItemStatus',
+    'TrackedItem',
+    'TrackerStats',
+    'FileTracker'
 ]

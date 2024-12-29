@@ -1,1 +1,0 @@
-"""Private implementation of init file generator."""

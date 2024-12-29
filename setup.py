@@ -36,7 +36,8 @@ setup(
     packages=find_packages(exclude=['tests*', 'docs*', 'examples*']),
     python_requires=">=3.7",
     install_requires=[
-        "pytest>=7.0.0"
+        "pytest>=7.0.0",
+        "pydantic>=2.0.0"
     ],
     extras_require={
         "dev": [
