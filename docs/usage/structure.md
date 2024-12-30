@@ -185,4 +185,4 @@ For large projects:
 
 - Learn about [Init Files Management](init.md)
 - Explore [File Combining](combining.md)
-- Check the [API Reference](../api.md) for detailed information
+- Check the [API Reference](../reference/pyweaver/processors/file_combiner.md) for detailed information

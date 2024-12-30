@@ -243,4 +243,4 @@ If content isn't processed correctly:
 
 - Learn about [Structure Generation](structure.md)
 - Explore [Init Files Management](init.md)
-- Check the [API Reference](../api.md) for detailed information
+- Check the [API Reference](../reference/pyweaver/processors/file_combiner.md) for detailed information

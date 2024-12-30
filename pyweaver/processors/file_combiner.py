@@ -64,7 +64,7 @@ class FileSectionConfig:
     include_empty_lines: bool = True
     remove_trailing_whitespace: bool = True
 
-    def format_header(self, path: Path, **kwargs) -> str:
+    def format_header(self, path: Path, **kwargs: dict) -> str:
         """Format section header for a file.
 
         Args:
@@ -86,7 +86,7 @@ class FileSectionConfig:
                 details={"template": self.header_template, "path": str(path)}
             ) from e
 
-    def format_footer(self, path: Path, **kwargs) -> str:
+    def format_footer(self, path: Path, **kwargs: dict) -> str:
         """Format section footer for a file.
 
         Args:
@@ -228,7 +228,7 @@ class FileCombinerProcessor(BaseProcessor):
         remove_docstrings: bool = False,
         generate_tree: bool = False,
         section_config: Optional[FileSectionConfig] = None,
-        **kwargs
+        **kwargs: dict
     ):
         """Initialize the file combiner processor.
 
@@ -447,7 +447,7 @@ def combine_files(
     patterns: Optional[List[str]] = None,
     remove_comments: bool = False,
     remove_docstrings: bool = False,
-    **kwargs
+    **kwargs: dict
 ) -> ProcessorResult:
     """Convenience function for quick file combining.
 

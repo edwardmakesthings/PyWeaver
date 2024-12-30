@@ -717,7 +717,7 @@ def generate_structure(
     ignore_patterns: Optional[Set[str]] = None,
     include_patterns: Optional[Set[str]] = None,
     sort_type: str = "alpha",
-    **kwargs
+    **kwargs: dict
 ) -> str:
     """Generate a formatted directory structure listing.
 

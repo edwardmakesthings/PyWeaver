@@ -637,7 +637,7 @@ def generate_init_files(
     exclude_patterns: Optional[Set[str]] = None,
     preview: bool = False,
     config_path: Optional[str | Path] = None,
-    **kwargs
+    **kwargs: dict
 ) -> Dict[Path, str]:
     """Generate or update __init__.py files across a project.
 
