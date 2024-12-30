@@ -2,11 +2,14 @@
 requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
 build-backend = "setuptools.build_meta"
 
-[tool.poetry]
+[project]
 name = "pyweaver"
-version = "0.1.0"
+version = "1.0.0"
 description = "A toolkit for weaving together well-structured Python projects"
-authors = ["Edward Jaworenko <edward@jaworenko.design>"]
+requires-python = ">=3.7"
+authors = [
+    {name = "Edward Jaworenko", email = "edward@jaworenko.design"}
+]
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/edwardmakesthings/pyweaver"
