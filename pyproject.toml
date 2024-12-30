@@ -94,29 +94,3 @@ pretty = true
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
-
-# Documentation building configuration
-[tool.mkdocs]
-site_name = "PyWeaver"
-site_description = "A toolkit for weaving together well-structured Python projects"
-site_author = "Edward Jaworenko"
-site_url = "https://edwardmakesthings.github.io/pyweaver"
-
-# Theme configuration
-theme = {name = "material", palette = {scheme = "default", primary = "indigo", accent = "indigo"}}
-
-# Plugin configuration
-plugins = ["search", "mkdocstrings"]
-
-# Navigation structure
-nav = [
-    {Home = "index.md"},
-    {Usage = [
-        {"Quick Start": "usage/quickstart.md"},
-        {"File Structure Generation": "usage/structure.md"},
-        {"Init File Management": "usage/init.md"},
-        {"File Combining": "usage/combining.md"}
-    ]},
-    {"API Reference" = "api.md"},
-    {Contributing = "contributing.md"}
-]
