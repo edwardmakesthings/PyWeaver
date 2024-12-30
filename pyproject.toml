@@ -1,12 +1,8 @@
-[
-build-system
-]
+[build-system]
 requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
 build-backend = "setuptools.build_meta"
 
-[
-tool.poetry
-]
+[tool.poetry]
 name = "pyweaver"
 version = "0.1.0"
 description = "A toolkit for weaving together well-structured Python projects"
@@ -19,18 +15,14 @@ documentation = "https://edwardmakesthings.github.io/pyweaver"
 keywords = ["python", "project-structure", "development-tools", "init-files"]
 
 # Package dependencies are more focused on project structure and file handling
-[
-tool.poetry.dependencies
-]
+[tool.poetry.dependencies]
 python = "^3.7"
 pydantic = "^2.0.0"
 typing-extensions = "^4.0.0"
 pathlib = "^1.0.0"
 
 # Development dependencies include documentation tools for GitHub Pages
-[
-tool.poetry.dev-dependencies
-]
+[tool.poetry.dev-dependencies]
 pytest = "^7.0.0"
 pytest-cov = "^4.0.0"
 black = "^23.0.0"
@@ -40,14 +32,9 @@ pre-commit = "^2.19.0"
 sphinx = "^7.0.0"
 sphinx-rtd-theme = "^1.0.0"
 sphinx-autodoc-typehints = "^1.0.0"
-# For GitHub Pages documentation
-mkdocs = "^1.4.0"
-mkdocs-material = "^9.0.0"
-mkdocstrings = {extras = ["python"], version = "^0.20.0"}
 
-[
-project.optional-dependencies
-]
+# For GitHub Pages documentation
+[project.optional-dependencies]
 docs = [
     "mkdocs>=1.4.0",
     "mkdocs-material>=9.0.0",
@@ -59,17 +46,13 @@ docs = [
 ]
 
 # Testing configuration
-[
-tool.pytest.ini_options
-]
+[tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra -q --cov=pyweaver"
 
 # Code formatting configuration
-[
-tool.black
-]
+[tool.black]
 line-length = 88
 target-version = ['py37', 'py38', 'py39', 'py310']
 include = '\.pyi?$'
@@ -88,9 +71,7 @@ exclude = '''
 '''
 
 # Import sorting configuration
-[
-tool.isort
-]
+[tool.isort]
 profile = "black"
 multi_line_output = 3
 line_length = 88
@@ -101,9 +82,7 @@ ensure_newline_before_comments = true
 
 
 # Type checking configuration
-[
-tool.mypy
-]
+[tool.mypy]
 python_version = "3.7"
 warn_return_any = true
 warn_unused_configs = true
@@ -112,16 +91,12 @@ check_untyped_defs = true
 show_error_codes = true
 pretty = true
 
-[[
-tool.mypy.overrides
-]]
+[[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
 
 # Documentation building configuration
-[
-tool.mkdocs
-]
+[tool.mkdocs]
 site_name = "PyWeaver"
 site_description = "A toolkit for weaving together well-structured Python projects"
 site_author = "Edward Jaworenko"
