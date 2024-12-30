@@ -24,7 +24,7 @@ from pyweaver.common.tracking import TrackerType
 from pyweaver.common.errors import (
     ProcessingError, ErrorContext, ErrorCode, FileError
 )
-from pyweaver.config.init import InitConfig, ImportSection
+from pyweaver.config.init import InitConfig, ImportSection, InitSettings
 from pyweaver.config.path import PathConfig
 from pyweaver.utils.module_analyzer import ModuleAnalyzer, ModuleInfo
 from pyweaver.utils.repr import comprehensive_repr
@@ -204,6 +204,14 @@ class InitFileProcessor(BaseProcessor):
                 original_error=e
             ) from e
 
+    def get_changes(self) -> Dict[Path, str]:
+        """Get changes made to init files during processing.
+
+        Returns:
+            Dictionary mapping file paths to their content
+        """
+        return self._changes.copy()
+
     def _scan_project(self) -> None:
         """Scan project to find directories needing init files.
 
@@ -283,16 +291,16 @@ class InitFileProcessor(BaseProcessor):
             FileError: If file operations fail
         """
         try:
+            # Get settings directly from init_config
+            settings = self.init_config.get_settings_for_path(path)
+
             # Skip if path should be excluded
             if self.init_config.pattern_matcher.is_excluded_path(path):
                 self._add_warning(f"Skipping excluded path: {path}")
                 return
 
-            # Get package configuration
-            package_config = self.init_config.get_package_config(path)
-
             # Collect module information
-            module_info = self._collect_module_info(path, package_config)
+            module_info = self._collect_module_info(path, settings)
             if not module_info:
                 logger.debug("No modules found in %s", path)
                 return
@@ -300,7 +308,7 @@ class InitFileProcessor(BaseProcessor):
             self.progress.modules_analyzed += len(module_info)
 
             # Generate content
-            content = self._generate_init_content(path, module_info, package_config)
+            content = self._generate_init_content(path, module_info, settings)
             if not content:
                 logger.debug("No content generated for %s", path)
                 return
@@ -358,7 +366,11 @@ class InitFileProcessor(BaseProcessor):
                 original_error=e
             ) from e
 
-    def _collect_module_info(self, dir_path: Path, config: PackageConfig) -> Dict[str, ModuleInfo]:
+    def _collect_module_info(
+        self,
+        dir_path: Path,
+        settings: InitSettings
+    ) -> Dict[str, ModuleInfo]:
         """Collect information about modules in a directory.
 
         This method analyzes Python modules in a directory to extract information
@@ -366,7 +378,7 @@ class InitFileProcessor(BaseProcessor):
 
         Args:
             dir_path: Directory to analyze
-            config: Package configuration
+            settings: Configuration settings from InitConfig
 
         Returns:
             Dictionary mapping module names to their information
@@ -391,7 +403,7 @@ class InitFileProcessor(BaseProcessor):
                     self.progress.exports_collected += len(info.exports)
 
             # Process submodules if enabled
-            if config.collect_from_submodules:
+            if settings.collect_from_submodules:
                 for subdir in dir_path.iterdir():
                     if not subdir.is_dir():
                         continue
@@ -401,8 +413,8 @@ class InitFileProcessor(BaseProcessor):
                         continue
 
                     # Skip if not in included submodules
-                    if (config.include_submodules and
-                        subdir.name not in config.include_submodules):
+                    if (settings.include_submodules and
+                        subdir.name not in settings.include_submodules):
                         continue
 
                     sub_init = subdir / "__init__.py"
@@ -422,7 +434,7 @@ class InitFileProcessor(BaseProcessor):
                 operation="collect_module_info",
                 error_code=ErrorCode.PROCESS_EXECUTION,
                 path=dir_path,
-                details={"config": str(config)}
+                details={"config": str(settings)}
             )
             raise ProcessingError(
                 "Failed to collect module information",
@@ -430,10 +442,12 @@ class InitFileProcessor(BaseProcessor):
                 original_error=e
             ) from e
 
-    def _generate_init_content(self,
+    def _generate_init_content(
+        self,
         dir_path: Path,
         module_info: Dict[str, ModuleInfo],
-        config: PackageConfig) -> Optional[str]:
+        settings: InitSettings
+    ) -> Optional[str]:
         """Generate content for an init file.
 
         This method generates the content for an __init__.py file based on
@@ -442,7 +456,7 @@ class InitFileProcessor(BaseProcessor):
         Args:
             dir_path: Directory being processed
             module_info: Information about modules
-            config: Package configuration
+            settings: Configuration settings from InitConfig
 
         Returns:
             Generated content or None if no content needed
@@ -455,10 +469,10 @@ class InitFileProcessor(BaseProcessor):
             try:
                 rel_path = dir_path.relative_to(self.root_dir)
             except ValueError:
-                rel_path = dir_path  # Fallback to full path if can't make relative
+                rel_path = dir_path
 
             # Initialize content with docstring
-            content = [f'"""{config.docstring}\n']
+            content = [f'"""{settings.docstring}\n']
 
             # Collect class documentation
             class_docs = []
@@ -481,7 +495,7 @@ class InitFileProcessor(BaseProcessor):
 
             # Process sections in configured order
             sorted_sections = sorted(
-                [(section, cfg) for section, cfg in config.sections.items() if cfg.enabled],
+                [(section, cfg) for section, cfg in settings.sections.items() if cfg.enabled],
                 key=lambda x: x[1].order
             )
 
@@ -541,7 +555,7 @@ class InitFileProcessor(BaseProcessor):
                 path=dir_path,
                 details={
                     "num_modules": len(module_info),
-                    "num_sections": len(config.sections)
+                    "num_sections": len(settings.sections)
                 }
             )
             raise ProcessingError(
@@ -608,4 +622,128 @@ class InitFileProcessor(BaseProcessor):
         return "\n".join(preview_lines)
 
     def __repr__(self) -> str:
-        return comprehensive_repr(self, prioritize=["root_dir", "config_path", "dry_run"], one_per_line=True)
+        """Get string representation of processor state."""
+        return comprehensive_repr(
+            self,
+            exclude=['_changes'],
+            prioritize=['root_dir', 'dry_run'],
+            one_per_line=True
+        )
+
+def generate_init_files(
+    root_dir: str | Path,
+    docstring: Optional[str] = None,
+    collect_submodules: bool = True,
+    exclude_patterns: Optional[Set[str]] = None,
+    preview: bool = False,
+    config_path: Optional[str | Path] = None,
+    **kwargs
+) -> Dict[Path, str]:
+    """Generate or update __init__.py files across a project.
+
+    This convenience function provides a simpler interface to the InitFileProcessor
+    for common use cases. It properly handles configuration settings and allows
+    for customization through kwargs.
+
+    Args:
+        root_dir: Root directory of the project
+        docstring: Optional default docstring for __init__.py files
+        collect_submodules: Whether to collect exports from submodules. This affects
+                          whether the processor will look for exports in subdirectories
+        exclude_patterns: Patterns for paths to exclude from processing
+        preview: If True, return changes without writing files
+        config_path: Optional path to configuration file
+        **kwargs: Additional configuration options including:
+                - include_submodules: List of specific submodules to include
+                - order_policy: How to order imports ("dependency_first", "alphabetical", etc.)
+                - exports_blacklist: Set of names to exclude from exports
+                - generate_tree: Whether to include directory tree in comments
+                - sections: Dictionary of section configurations
+                - exact_path_only: Whether to use exact path matching
+                - export_mode: How to determine exports
+
+    Returns:
+        Dictionary mapping file paths to their content (if preview=True)
+        or to their status message (if preview=False)
+
+    Raises:
+        ProcessingError: If init file generation fails
+        ValidationError: If configuration is invalid
+        FileError: If file operations fail
+
+    Example:
+        ```python
+        # Basic generation with submodule collection
+        generate_init_files("src", collect_submodules=True)
+
+        # Advanced usage with custom configuration
+        generate_init_files(
+            "src",
+            docstring="Package initialization.",
+            collect_submodules=True,
+            exclude_patterns={"tests", "docs"},
+            order_policy="alphabetical",
+            generate_tree=True,
+            include_submodules=["core", "utils"]
+        )
+        ```
+    """
+    try:
+        # Initialize processor
+        processor = InitFileProcessor(
+            root_dir=root_dir,
+            config_path=config_path,
+            dry_run=preview
+        )
+
+        # Update configuration with provided settings
+        processor.init_config.global_settings.collect_from_submodules = collect_submodules
+
+        if docstring is not None:
+            processor.init_config.global_settings.docstring = docstring
+
+        if exclude_patterns:
+            processor.init_config.global_settings.excluded_paths.update(exclude_patterns)
+
+        # Process additional configuration options from kwargs
+        config_mappings = {
+            'include_submodules': 'include_submodules',
+            'order_policy': 'order_policy',
+            'exports_blacklist': 'exports_blacklist',
+            'generate_tree': 'generate_tree',
+            'sections': 'sections',
+            'exact_path_only': 'exact_path_only',
+            'export_mode': 'export_mode'
+        }
+
+        for kwarg, config_attr in config_mappings.items():
+            if kwarg in kwargs:
+                setattr(processor.init_config.global_settings, config_attr, kwargs[kwarg])
+
+        # Process files
+        if preview:
+            return processor.preview()
+        else:
+            processor.process()
+            return {
+                path: "Updated" if path in processor.get_changes() else "Unchanged"
+                for path in processor.get_changes()
+            }
+
+    except Exception as e:
+        context = ErrorContext(
+            operation="generate_init_files",
+            error_code=ErrorCode.PROCESS_EXECUTION,
+            path=root_dir,
+            details={
+                "preview": preview,
+                "config_path": str(config_path) if config_path else None,
+                "collect_submodules": collect_submodules,
+                "kwargs": str(kwargs)
+            }
+        )
+        raise ProcessingError(
+            "Failed to generate init files",
+            context=context,
+            original_error=e
+        ) from e

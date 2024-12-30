@@ -1,191 +1,103 @@
-"""Example usage of the init generator.
+"""Example usage of the init file generator.
 
-This example demonstrates different approaches to generating __init__.py files:
-1. Basic generator: For simple package structures
-2. Config-based generator: For complex projects with standardized init files
+This example demonstrates different approaches to generating __init__.py files,
+from simple package initialization to complex configurations with customized
+content organization.
 
-The config-based approach is particularly useful for:
-- Large projects with many packages
-- Standardized docstring formats
-- Consistent export organization
-- Multiple package structures
+The init generator supports:
+- Simple package initialization
+- Customized docstrings and content
+- Submodule handling and export collection
+- Section-based content organization
+- Preview functionality
+
+Example use cases:
+1. Package Setup: Initialize new Python packages
+2. Documentation: Generate well-documented init files
+3. Refactoring: Update init files during restructuring
+4. Standardization: Maintain consistent package structure
 
 Path: examples/init_generator_example.py
 """
 
-import json
-from pathlib import Path
-from pyweaver.init_generator import (
-    create_generator,
-    create_config_generator,
-    ExportCollectionMode,
-    InitGeneratorConfig
+from pyweaver.processors import (
+    generate_init_files,
+    InitFileProcessor
 )
-from pyweaver.common.type_definitions import GeneratorMode
+from pyweaver.config import ImportOrderPolicy
+
 
 def basic_usage():
-    """Simple init file generation without configuration.
-
-    Best for:
-    - Single packages
-    - Simple export requirements
-    - Basic docstring needs
-    """
-    generator = create_generator(
-        root_dir=Path("my_package"),
-        mode=GeneratorMode.PREVIEW,
-        export_mode=ExportCollectionMode.ALL_PUBLIC
+    """Simple init file generation."""
+    result = generate_init_files(
+        "src",
+        docstring="Package initialization.",
+        collect_submodules=True
     )
 
-    # Generate with preview mode first
-    changes = generator.preview()
+    print("\nGenerated init files:")
+    for path, status in result.items():
+        print(f"{path}: {status}")
+
+def advanced_usage():
+    """Advanced usage with custom configuration."""
+    # Create processor with specific settings
+    processor = InitFileProcessor(
+        root_dir="src",
+        config_path="init_config.json",
+        dry_run=True  # Preview mode
+    )
+
+    # Preview changes first
+    changes = processor.preview()
+
     print("\nPreview of changes:")
     for path, content in changes.items():
         print(f"\n--- {path} ---")
         print(content)
         print("-" * 40)
 
-    # If changes look good, switch to write mode
-    generator_write = create_generator(
-        root_dir=Path("my_package"),
-        mode=GeneratorMode.WRITE,
-        export_mode=ExportCollectionMode.ALL_PUBLIC
-    )
-
-    # Generate the files
-    result = generator_write.write()
-    if result.success:
-        print(f"Successfully wrote {result.files_written} files")
-    else:
-        print(f"Errors during generation: {result.errors}")
-
-def config_based_single_package():
-    """Generate init files for a single package using configuration.
-
-    Best for:
-    - Complex package structures
-    - Custom docstring templates
-    - Organized exports by type
-    """
-    generator = create_config_generator(
-        config_path=Path("init_config.json"),
-        root_dir=Path("my_project"),
-        mode=GeneratorMode.PREVIEW
-    )
-
-    # Process specific package
-    result = generator.process_package("my_package.core")
-
-    if result.success:
-        print(f"Processed package successfully")
-        print(f"Files that would be written: {result.files_processed}")
-    else:
-        print("Errors:", result.errors)
-
-def config_based_full_project():
-    """Generate init files for entire project using configuration.
-
-    Best for:
-    - Multi-package projects
-    - Standardized init files
-    - Consistent export organization
-    """
-    # First validate the configuration
-    generator = create_config_generator(
-        config_path=Path("init_config.json"),
-        root_dir=Path("my_project"),
-        mode=GeneratorMode.PREVIEW
-    )
-
-    validation = generator.validate()
-    if not validation.is_valid:
-        print("Configuration errors:", validation.errors)
-        return
-
-    # Preview changes first
-    results = generator.process_all()
-
-    print("\nPreview Results:")
-    for package, result in results.items():
-        print(f"\n{package}:")
-        print(f"Files processed: {result.files_processed}")
-        if not result.success:
-            print("Errors:", result.errors)
-
-    # If preview looks good, generate with write mode
+    # Generate if approved
     if input("\nGenerate files? (y/n): ").lower() == 'y':
-        generator = create_config_generator(
-            config_path=Path("init_config.json"),
-            root_dir=Path("my_project"),
-            mode=GeneratorMode.WRITE
-        )
-        results = generator.process_all()
+        # Switch to write mode
+        processor.dry_run = False
+        result = processor.process()
 
-        print("\nGeneration Results:")
-        for package, result in results.items():
-            status = "Success" if result.success else "Failed"
-            print(f"{package}: {status} ({result.files_written} files written)")
+        if result.success:
+            print(f"Successfully generated {result.files_processed} files")
+        else:
+            print(f"Generation failed: {result.message}")
+            for error in result.errors:
+                print(f"Error: {error}")
 
-def example_config():
-    """Creates an example init_config.json file."""
-    config = {
-        "global": {
-            "order_policy": "dependency_first",
-            "docstring": "Auto-generated __init__.py file.",
-            "exports_blacklist": ["internal_*", "test_*", "_*"],
-            "excluded_paths": [
-                "**/.git",
-                "**/__pycache__",
-                "**/tests"
-            ],
-            "collect_from_submodules": True,
-            "sections": {
-                "classes": {
-                    "enabled": True,
-                    "order": 0,
-                    "header_comment": "# Classes",
-                },
-                "functions": {
-                    "enabled": True,
-                    "order": 1,
-                    "header_comment": "# Functions",
-                }
-            }
-        },
-        "paths": {
-            "my_package.core": {
-                "docstring": "Core functionality for my_package.\n\nProvides essential features and base classes.",
-                "inline_content": {
-                    "version": {
-                        "code": "__version__ = '0.1.0'",
-                        "order": 999,
-                        "section": "constants"
-                    }
-                }
-            }
-        }
-    }
+def selective_generation():
+    """Generate init files with specific settings."""
+    result = generate_init_files(
+        "src",
+        docstring="Project initialization.",
+        collect_submodules=True,
+        exclude_patterns={"tests", "docs"},
+        order_policy=ImportOrderPolicy.DEPENDENCY_FIRST,
+        generate_tree=True,
+        include_submodules=["core", "utils"]
+    )
 
-    with open("init_config_example.json", "w") as f:
-        json.dump(config, f, indent=2)
-    print("Created example config file: init_config_example.json")
+    for path, status in result.items():
+        print(f"{path}: {status}")
 
 if __name__ == "__main__":
     print("Init Generator Examples")
     print("1. Basic Usage")
-    print("2. Config-Based (Single Package)")
-    print("3. Config-Based (Full Project)")
-    print("4. Create Example Config")
+    print("2. Advanced Usage")
+    print("3. Selective Generation")
 
-    choice = input("\nSelect example (1-4): ")
+    choice = input("\nSelect example (1-3): ")
 
     if choice == "1":
         basic_usage()
     elif choice == "2":
-        config_based_single_package()
+        advanced_usage()
     elif choice == "3":
-        config_based_full_project()
-    elif choice == "4":
-        example_config()
+        selective_generation()
     else:
         print("Invalid choice")

@@ -28,6 +28,7 @@ from pyweaver.common.errors import (
 )
 from pyweaver.config.path import PathConfig
 from pyweaver.utils.patterns import PatternMatcher
+from pyweaver.processors.structure_generator import ListingStyle
 from pyweaver.processors._impl._file_combiner import FileCombinerImpl
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class ContentMode(Enum):
     MINIMAL = "minimal"      # Remove both comments and docstrings
 
 @dataclass
-class SectionConfig:
+class FileSectionConfig:
     """Configuration for file sections in combined output.
 
     This class defines how individual file sections should be formatted
@@ -127,34 +128,35 @@ class CombinerProgress(ProcessorProgress):
 class CombinerConfig(PathConfig):
     """Configuration for file combining operations.
 
-    This class extends the base PathConfig with settings specific to
-    file combining operations, providing comprehensive configuration
-    options.
+    This class extends PathConfig with settings specific to file combining operations,
+    providing comprehensive configuration options for both file processing and
+    structure generation.
 
     Attributes:
         output_file: Where to write combined output
         content_mode: How to process file content
         file_patterns: Patterns for files to include
-        generate_tree: Whether to generate directory tree
         section_config: Configuration for section formatting
         encoding: File encoding to use
         include_sections: Specific sections to include
         exclude_sections: Sections to exclude
         line_ending: Line ending standardization
         add_file_stats: Whether to add file statistics
+        include_structure: Whether to include directory structure in output
+        structure_format: Format for directory structure (if included)
+        include_empty_dirs: Whether to include empty directories in structure
     """
     output_file: Path
     content_mode: ContentMode = ContentMode.FULL
     file_patterns: List[str] = field(default_factory=lambda: ["*.py"])
-    generate_tree: bool = False
-    section_config: SectionConfig = field(default_factory=SectionConfig)
+    section_config: FileSectionConfig = field(default_factory=FileSectionConfig)
     encoding: str = "utf-8"
     include_sections: Optional[List[str]] = None
     exclude_sections: Optional[List[str]] = None
     line_ending: str = "\n"
     add_file_stats: bool = False
     include_structure: bool = False
-    structure_tree_format: bool = True
+    structure_format: ListingStyle = ListingStyle.TREE
     include_empty_dirs: bool = False
 
     def validate_patterns(self) -> None:
@@ -225,7 +227,7 @@ class FileCombinerProcessor(BaseProcessor):
         remove_comments: bool = False,
         remove_docstrings: bool = False,
         generate_tree: bool = False,
-        section_config: Optional[SectionConfig] = None,
+        section_config: Optional[FileSectionConfig] = None,
         **kwargs
     ):
         """Initialize the file combiner processor.
@@ -259,8 +261,9 @@ class FileCombinerProcessor(BaseProcessor):
                 output_file=Path(output_file),
                 content_mode=mode,
                 file_patterns=patterns or ["*.py"],
-                generate_tree=generate_tree,
-                section_config=section_config or SectionConfig(),
+                include_structure=generate_tree,  # Map generate_tree to include_structure
+                structure_format=ListingStyle.TREE,  # Default to tree format
+                section_config=section_config or FileSectionConfig(),
                 **kwargs
             )
 
@@ -416,7 +419,7 @@ class FileCombinerProcessor(BaseProcessor):
         # Check ignore patterns
         return not any(
             self.pattern_matcher.matches_path_pattern(path=rel_path, pattern=pattern)
-            for pattern in self.config.ignore_patterns
+            for pattern in self.config.global_settings.ignore_patterns
         )
 
     def _ensure_impl(self) -> None:

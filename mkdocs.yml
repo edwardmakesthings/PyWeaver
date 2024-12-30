@@ -1,0 +1,140 @@
+site_name: PyWeaver Documentation
+site_description: A toolkit for weaving together well-structured Python projects
+site_author: Edward Jaworenko
+site_url: https://edwardmakesthings.github.io/pyweaver/
+repo_url: https://github.com/edwardmakesthings/pyweaver
+repo_name: edwardmakesthings/PyWeaver
+
+theme:
+  name: material
+  favicon: assets/favicon.png
+  font:
+    code: Fira Code
+  custom_dir: overrides
+  features:
+    - navigation.tabs
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - navigation.path
+    - navigation.footer
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - header.autohide
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      options:
+        custom_icons:
+          - overrides/.icons
+  - tables
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+plugins:
+  - mkdocs_transform_gh_readme
+  - search
+  - autorefs
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+  - offline
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [pyweaver]
+          selection:
+            docstring_style: google
+            members: true
+          rendering:
+            show_source: true
+            show_root_heading: true
+            heading_level: 2
+            members_order: source
+            show_if_no_docstring: false
+            merge_init_into_class: true
+            show_root_full_path: false
+            separate_signature: true
+            show_extension: false
+
+hooks:
+    - docs/hooks.py
+
+nav:
+  - Home: index.md
+  - Usage:
+      - Quick Start: usage/quickstart.md
+      - File Structure Generation: usage/structure.md
+      - Init File Management: usage/init.md
+      - File Combining: usage/combining.md
+  - API Reference: reference/
+  - Contributing: contributing.md
+
+extra:
+  consent:
+    title: Cookie consent
+    description: >-
+      We use cookies to recognize your repeated visits and preferences, as well
+      as to measure the effectiveness of our documentation and whether users
+      find what they're searching for. With your consent, you're helping us to
+      make our documentation better.
+  social:
+    - icon: personal/jaworenko-design
+      link: https://jaworenko.design
+      name: My Website
+    - icon: fontawesome/brands/github
+      link: https://github.com/edwardmakesthings
+      name: My Github
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/in/edwardmakesthings
+      name: My LinkedIn
+  version:
+    provider: mike
+
+copyright: >
+  Copyright &copy; 2024 - 2025  |  Edward Jaworenko –
+  <a href="#__consent">Change cookie settings</a>

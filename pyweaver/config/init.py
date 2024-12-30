@@ -86,7 +86,7 @@ class ExportMode(str, Enum):
     ALL_PUBLIC = "all_public"  # All non-underscore names
     CUSTOM = "custom"        # Uses custom export rules
 
-class SectionConfig(BaseModel):
+class InitSectionConfig(BaseModel):
     """Configuration for a content section in init files.
 
     This model defines how a specific section should be formatted and
@@ -161,7 +161,7 @@ class InitSettings(BaseModel):
     excluded_paths: Set[str] = Field(default_factory=set)
     collect_from_submodules: bool = True
     include_submodules: Optional[List[str]] = None
-    sections: Dict[str, SectionConfig] = Field(default_factory=dict)
+    sections: Dict[str, InitSectionConfig] = Field(default_factory=dict)
     inline_content: Dict[str, InlineContent] = Field(default_factory=dict)
     custom_order: Optional[List[str]] = None
     dependencies: List[str] = Field(default_factory=list)
@@ -170,7 +170,7 @@ class InitSettings(BaseModel):
 
     @field_validator('sections')
     @classmethod
-    def validate_sections(cls, v: Dict[str, SectionConfig]) -> Dict[str, SectionConfig]:
+    def validate_sections(cls, v: Dict[str, InitSectionConfig]) -> Dict[str, InitSectionConfig]:
         """Validate section configurations and set defaults.
 
         This method ensures all sections have proper configurations and
@@ -395,7 +395,7 @@ class InitConfig(BaseConfig[InitSettings]):
             for name, section in path_settings.sections.items():
                 if name in merged.sections:
                     base_section = merged.sections[name]
-                    merged.sections[name] = SectionConfig(
+                    merged.sections[name] = InitSectionConfig(
                         enabled=section.enabled,
                         order=section.order if section.order is not None else base_section.order,
                         header_comment=section.header_comment or base_section.header_comment,

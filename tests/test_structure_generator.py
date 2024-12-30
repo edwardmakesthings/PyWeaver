@@ -1,207 +1,219 @@
-"""Test suite for structure generator.
+"""Test suite for structure generator examples.
 
-Provides comprehensive testing of the structure generator functionality
-including unit tests and integration tests.
+This module provides comprehensive testing for the structure generator example
+functionality. It verifies that all example use cases work correctly and
+produce the expected results.
 
-Path: tests/test_structure_generator.py
+The tests cover:
+- Documentation generation
+- Project analysis
+- Focused views
+- Pattern filtering
+- Statistics gathering
+- Error handling
+
+Path: tests/test_structure_examples.py
 """
 
-import pytest
 from pathlib import Path
 import tempfile
-import shutil
 from typing import Generator, Any
+import pytest
 
-from pyweaver.structure_generator import (
-    create_generator,
-    OutputFormat,
-    StructureConfig
+from examples.structure_generator_example import (
+    document_project_structure,
 )
+from pyweaver.processors import generate_structure, StructurePrinter
 
 @pytest.fixture
-def temp_dir() -> Generator[Path, Any, None]:
-    """Create a temporary directory with test files."""
+def example_project() -> Generator[Path, Any, None]:
+    """Create a sample project structure for testing.
+
+    This fixture creates a realistic project structure with various
+    file types and nested directories to test structure generation.
+    """
     with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
+        project_root = Path(tmp)
 
-        # Create test directory structure
-        (tmp_path / "src").mkdir()
-        (tmp_path / "src/module1").mkdir()
-        (tmp_path / "src/module2").mkdir()
-        (tmp_path / "tests").mkdir()
+        # Create source structure
+        src = project_root / "src"
+        src.mkdir()
 
-        # Create some files
-        (tmp_path / "src/module1/file1.py").touch()
-        (tmp_path / "src/module2/file2.py").touch()
-        (tmp_path / "tests/test_file.py").touch()
-        (tmp_path / "__pycache__").mkdir()
-        (tmp_path / "__pycache__/cache.pyc").touch()
+        # Create modules
+        for module in ["core", "utils", "api"]:
+            module_dir = src / module
+            module_dir.mkdir()
 
-        yield tmp_path
+            # Add Python files
+            (module_dir / "__init__.py").touch()
+            (module_dir / f"{module}.py").write_text(f"# {module} implementation")
+            (module_dir / f"{module}_utils.py").write_text("# Utility functions")
 
-def test_basic_generation(temp_dir: Path):
-    """Test basic structure generation."""
-    output_file = temp_dir / "structure.txt"
+            # Add tests
+            test_dir = module_dir / "tests"
+            test_dir.mkdir()
+            (test_dir / f"test_{module}.py").write_text("# Test cases")
 
-    generator = create_generator(
-        root_dir=temp_dir,
-        output_file=output_file
+        # Create documentation
+        docs = project_root / "docs"
+        docs.mkdir()
+        (docs / "readme.md").write_text("# Project Documentation")
+        (docs / "api.md").write_text("# API Documentation")
+
+        # Create files that should be ignored
+        (project_root / "__pycache__").mkdir()
+        (project_root / "__pycache__/cache.pyc").touch()
+        (project_root / ".git").mkdir()
+        (project_root / ".git/config").touch()
+
+        yield project_root
+
+def test_document_project_structure(example_project, monkeypatch):
+    """Test project structure documentation generation."""
+    # Mock current directory
+    monkeypatch.chdir(example_project)
+
+    # Generate tree structure
+    tree = generate_structure(
+        "src",
+        style="tree",
+        show_size=True,
+        sort_type="alpha_dirs_first"
     )
 
-    result = generator.generate()
-    assert result.success
-    assert result.files_processed > 0
-    assert output_file.exists()
+    # Verify tree structure content
+    assert "src" in tree
+    assert "core" in tree
+    assert "utils" in tree
+    assert "api" in tree
+    assert ".py" in tree
+    assert "B" in tree  # Size indicator
 
-    # Check content
-    content = output_file.read_text()
+    # Verify Markdown generation
+    docs_dir = example_project / "docs"
+    structure_md = docs_dir / "structure.md"
+
+    document_project_structure()
+    assert structure_md.exists()
+
+    content = structure_md.read_text()
+    assert "# Project Structure" in content
+    assert "Generated on:" in content
+    assert "Directory Tree" in content
     assert "src" in content
-    assert "module1" in content
-    assert "module2" in content
-    assert "tests" in content
+    assert "Structure Statistics" in content
 
-def test_format_outputs(temp_dir: Path):
-    """Test different output formats."""
-    for format in OutputFormat:
-        output_file = temp_dir / f"structure.{format.value}"
+def test_analyze_project_organization(example_project, monkeypatch):
+    """Test project organization analysis."""
+    monkeypatch.chdir(example_project)
 
-        generator = create_generator(
-            root_dir=temp_dir,
-            output_file=output_file,
-            format=format
+    # Capture statistics before changes
+    options = StructurePrinter(example_project).get_statistics()
+    initial_files = options["total_files"]
+    initial_dirs = options["total_dirs"]
+
+    # Add some files to test change detection
+    new_module = example_project / "src/new_module"
+    new_module.mkdir()
+    (new_module / "new_file.py").write_text("# New content")
+
+    # Re-analyze project
+    options = StructurePrinter(example_project).get_statistics()
+    assert options["total_files"] == initial_files + 1
+    assert options["total_dirs"] == initial_dirs + 1
+    assert options["total_size"] > 0
+    assert options["processing_time"] >= 0
+
+def test_generate_focused_views(example_project, monkeypatch):
+    """Test generation of focused structure views."""
+    monkeypatch.chdir(example_project)
+
+    # Test source files view
+    src_view = generate_structure(
+        ".",
+        style="tree",
+        include_patterns={"**/src/**/*.py"},
+        ignore_patterns={"**/*test*", "**/__init__.py"}
+    )
+    assert "src" in src_view
+    assert "core.py" in src_view
+    assert "utils.py" in src_view
+    assert "api.py" in src_view
+    assert "__init__.py" not in src_view
+    assert "test_" not in src_view
+
+    # Test test files view
+    test_view = generate_structure(
+        ".",
+        style="tree",
+        include_patterns={"**/tests/**/*.py", "**/*test*.py"}
+    )
+    assert "tests" in test_view
+    assert "test_core.py" in test_view
+    assert "test_utils.py" in test_view
+    assert "core.py" not in test_view
+
+    # Test documentation view
+    docs_view = generate_structure(
+        ".",
+        style="markdown",
+        include_patterns={"**/*.md", "**/docs/**/*"}
+    )
+    assert "docs" in docs_view
+    assert "readme.md" in docs_view
+    assert "api.md" in docs_view
+    assert ".py" not in docs_view
+
+def test_error_handling(example_project):
+    """Test error handling in structure generation."""
+    # Test invalid directory
+    with pytest.raises(Exception):
+        generate_structure(example_project / "nonexistent")
+
+    # Test invalid patterns
+    with pytest.raises(Exception):
+        generate_structure(
+            example_project,
+            include_patterns={"[invalid"}
         )
 
-        result = generator.generate()
-        assert result.success
-        assert output_file.exists()
+    # Test excessive depth
+    deep_structure = example_project / "deep"
+    current = deep_structure
+    for i in range(100):  # Create very deep structure
+        current.mkdir(parents=True)
+        current = current / str(i)
 
-        content = output_file.read_text()
-        if format == OutputFormat.MARKDOWN:
-            assert "📁" in content  # Check for directory emoji
-        elif format == OutputFormat.TREE:
-            assert "└──" in content  # Check for tree connector
+    # Should handle deep structure gracefully
+    structure = generate_structure(deep_structure)
+    assert structure  # Should return something
+    assert "Maximum depth exceeded" not in structure
 
-def test_exclusion_patterns(temp_dir: Path):
-    """Test pattern-based exclusions."""
-    output_file = temp_dir / "structure.txt"
-
-    generator = create_generator(
-        root_dir=temp_dir,
-        output_file=output_file,
-        exclude_patterns={"**/__pycache__/*", "**/*.pyc"}
-    )
-
-    result = generator.generate()
-    assert result.success
-
-    content = output_file.read_text()
-    assert "__pycache__" not in content
-    assert "cache.pyc" not in content
-    assert "file1.py" in content  # Regular files should be included
-
-def test_max_depth(temp_dir: Path):
-    """Test max depth limitation."""
-    output_file = temp_dir / "structure.txt"
-
-    # Test with depth 1 (should only show top-level)
-    generator = create_generator(
-        root_dir=temp_dir,
-        output_file=output_file,
-        max_depth=1
-    )
-
-    result = generator.generate()
-    assert result.success
-
-    content = output_file.read_text()
-    assert "src" in content
-    assert "module1" not in content  # Too deep
-    assert "file1.py" not in content  # Too deep
-
-def test_show_file_sizes(temp_dir: Path):
-    """Test file size display."""
-    # Create a file with known content
-    test_file = temp_dir / "test_file.txt"
-    test_file.write_text("test content")
-
-    output_file = temp_dir / "structure.txt"
-    generator = create_generator(
-        root_dir=temp_dir,
-        output_file=output_file,
-        show_size=True
-    )
-
-    result = generator.generate()
-    assert result.success
-
-    content = output_file.read_text()
-    # File size should be shown in the output
-    assert "test_file.txt" in content
-    assert "12 B" in content  # Size of "test content"
-
-def test_empty_directory_handling(temp_dir: Path):
-    """Test handling of empty directories."""
-    # Create an empty directory
-    empty_dir = temp_dir / "empty_dir"
+def test_special_cases(example_project):
+    """Test special cases and edge conditions."""
+    # Test empty directory
+    empty_dir = example_project / "empty"
     empty_dir.mkdir()
 
-    output_file = temp_dir / "structure.txt"
+    structure = generate_structure(empty_dir)
+    assert structure
+    assert "empty" in structure
 
-    # Test with empty dirs excluded
-    generator = create_generator(
-        root_dir=temp_dir,
-        output_file=output_file,
-        include_empty=False
+    # Test single file
+    single_file = example_project / "single.txt"
+    single_file.write_text("content")
+
+    structure = generate_structure(single_file.parent)
+    assert structure
+    assert "single.txt" in structure
+
+    # Test with all files filtered out
+    structure = generate_structure(
+        example_project,
+        include_patterns={"**/*.nonexistent"}
     )
-
-    result = generator.generate()
-    assert result.success
-    content = output_file.read_text()
-    assert "empty_dir" not in content
-
-    # Test with empty dirs included
-    generator = create_generator(
-        root_dir=temp_dir,
-        output_file=output_file,
-        include_empty=True
-    )
-
-    result = generator.generate()
-    assert result.success
-    content = output_file.read_text()
-    assert "empty_dir" in content
-
-def test_error_handling():
-    """Test error handling for invalid inputs."""
-    # Test with non-existent directory
-    with pytest.raises(FileNotFoundError):
-        generator = create_generator(
-            root_dir=Path("non_existent_dir"),
-            output_file=Path("structure.txt")
-        )
-        generator.generate()
-
-    # Test with invalid max_depth
-    with pytest.raises(ValueError):
-        generator = create_generator(
-            root_dir=Path.cwd(),
-            output_file=Path("structure.txt"),
-            max_depth=-1
-        )
-        generator.generate()
-
-def test_preview_functionality(temp_dir: Path):
-    """Test preview generation."""
-    generator = create_generator(
-        root_dir=temp_dir,
-        output_file=temp_dir / "structure.txt"
-    )
-
-    # Preview shouldn't create the file
-    preview = generator.preview()
-    assert isinstance(preview, str)
-    assert "src" in preview
-    assert not (temp_dir / "structure.txt").exists()
+    assert structure
+    assert "No matching files" in structure
 
 if __name__ == "__main__":
     pytest.main([__file__])

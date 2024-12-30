@@ -21,7 +21,9 @@ import time
 from dataclasses import dataclass
 
 from pyweaver.processors.file_combiner import CombinerConfig, ContentMode
-from pyweaver.processors.structure import StructurePrinter, StructureOptions
+from pyweaver.processors.structure_generator import (
+    StructurePrinter, StructureOptions
+)
 from pyweaver.common.errors import (
     ProcessingError, ErrorContext, ErrorCode, FileError
 )
@@ -105,23 +107,58 @@ class PythonProcessor(FileProcessor):
             ) from e
 
     def _remove_docstrings(self, tree: ast.AST) -> str:
-        """Remove docstrings using AST."""
+        """Remove docstrings from Python AST nodes.
+
+        Args:
+            tree (ast.AST): The Abstract Syntax Tree to process.
+
+        Returns:
+            str: The source code with docstrings removed.
+        """
         class DocstringRemover(ast.NodeTransformer):
+            """AST transformer that removes docstrings from Python code.
+
+            Inherits from ast.NodeTransformer to traverse and modify the AST.
+            """
             def visit_Module(self, node):
+                """Remove module-level docstrings.
+
+                Args:
+                    node (ast.Module): The module node to process.
+
+                Returns:
+                    ast.Module: The processed module node.
+                """
                 if (node.body and isinstance(node.body[0], ast.Expr) and
-                    isinstance(node.body[0].value, ast.Str)):
+                    isinstance(node.body[0].value, ast.Constant)):
                     node.body.pop(0)
                 return node
 
             def visit_ClassDef(self, node):
+                """Remove class-level docstrings.
+
+                Args:
+                    node (ast.ClassDef): The class definition node to process.
+
+                Returns:
+                    ast.ClassDef: The processed class node.
+                """
                 if (node.body and isinstance(node.body[0], ast.Expr) and
-                    isinstance(node.body[0].value, ast.Str)):
+                    isinstance(node.body[0].value, ast.Constant)):
                     node.body.pop(0)
                 return node
 
             def visit_FunctionDef(self, node):
+                """Remove function-level docstrings.
+
+                Args:
+                    node (ast.FunctionDef): The function definition node to process.
+
+                Returns:
+                    ast.FunctionDef: The processed function node.
+                """
                 if (node.body and isinstance(node.body[0], ast.Expr) and
-                    isinstance(node.body[0].value, ast.Str)):
+                    isinstance(node.body[0].value, ast.Constant)):
                     node.body.pop(0)
                 return node
 
@@ -599,7 +636,7 @@ class FileCombinerImpl:
                 return tree
 
             paths = [Path(file.relative_to(self.root_dir))
-                    for file in self._processed_files.keys()]
+                    for file in self._processed_files]
 
             return "\n".join([
                 "# Project Structure",
@@ -667,7 +704,7 @@ class FileCombinerImpl:
         """
         try:
             # Get appropriate processor
-            processor = self._processors.get(file_type.lower())
+            processor: FileProcessor = self._processors.get(file_type.lower())
             if processor is None:
                 logger.debug(
                     "No specific processor for %s, using raw content",
@@ -687,7 +724,7 @@ class FileCombinerImpl:
                 }
             )
             raise ProcessingError(
-                f"Failed to process content",
+                "Failed to process content",
                 context=context,
                 original_error=e
             ) from e
@@ -707,8 +744,8 @@ class FileCombinerImpl:
         if self.config.include_structure:
             options = StructureOptions(
                 include_empty=self.config.include_empty_dirs,
-                use_tree_format=self.config.structure_tree_format,
-                ignore_patterns=self.config.ignore_patterns
+                style=self.config.structure_format,
+                ignore_patterns=self.config.global_settings.ignore_patterns
             )
             printer = StructurePrinter(self.root_dir, options)
             structure = printer.generate_structure()

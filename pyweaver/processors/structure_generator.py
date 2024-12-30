@@ -12,6 +12,28 @@ The structure printer is designed to handle various use cases such as:
 - File system analysis
 - Structure validation
 
+The module provides both a comprehensive StructurePrinter class for fine-grained control
+and a simple generate_structure() convenience function for common use cases.
+
+Example:
+    ```python
+    # Using convenience function
+    structure = generate_structure("src", style="tree", show_size=True)
+    print(structure)
+
+    # Using full printer for more control
+    printer = StructurePrinter(
+        "src",
+        options=StructureOptions(
+            style=ListingStyle.TREE,
+            show_size=True,
+            max_depth=3
+        )
+    )
+    structure = printer.generate_structure()
+    print(structure)
+    ```
+
 The implementation prioritizes readability and flexibility while maintaining
 performance for large directory structures.
 
@@ -370,7 +392,7 @@ class StructurePrinter:
         # Process children if directory
         if entry.is_dir:
             children = self._get_sorted_entries(entry.path)
-            child_indent = indent + ("    " if is_last else "│   ")
+            # child_indent = indent + ("    " if is_last else "│   ") # Not used?
 
             for i, child in enumerate(children):
                 child_lines = self._format_tree_entry(
@@ -684,3 +706,96 @@ class StructurePrinter:
             f"files={self._total_files}, "
             f"dirs={self._total_dirs})"
         )
+
+def generate_structure(
+    directory: str | Path,
+    *,
+    style: str = "tree",
+    show_size: bool = False,
+    show_date: bool = False,
+    max_depth: Optional[int] = None,
+    ignore_patterns: Optional[Set[str]] = None,
+    include_patterns: Optional[Set[str]] = None,
+    sort_type: str = "alpha",
+    **kwargs
+) -> str:
+    """Generate a formatted directory structure listing.
+
+    This convenience function provides a simpler interface to generate directory
+    structure listings.
+
+    Args:
+        directory: Root directory to analyze
+        style: Output style ("tree", "flat", "indented", "markdown")
+        show_size: Whether to show file sizes
+        show_date: Whether to show modification dates
+        max_depth: Maximum directory depth to show
+        ignore_patterns: Set of glob patterns for files/directories to ignore
+        include_patterns: Set of glob patterns to explicitly include
+        sort_type: Sort order ("alpha", "alpha_dirs_first", "alpha_files_first",
+                  "modified", "size")
+        **kwargs: Additional options passed to StructureOptions
+
+    Returns:
+        Formatted structure representation
+
+    Raises:
+        ProcessingError: If structure generation fails
+        ValueError: If invalid style or sort type specified
+    """
+    try:
+        # Validate and convert style
+        try:
+            listing_style = ListingStyle(style.lower())
+        except ValueError as e:
+            valid_styles = ", ".join(s.value for s in ListingStyle)
+            raise ValueError(
+                f"Invalid style '{style}'. Must be one of: {valid_styles}"
+            ) from e
+
+        # Validate and convert sort order
+        try:
+            sort_order = SortOrder(sort_type.lower())
+        except ValueError as e:
+            valid_sorts = ", ".join(s.value for s in SortOrder)
+            raise ValueError(
+                f"Invalid sort type '{sort_type}'. Must be one of: {valid_sorts}"
+            ) from e
+
+        # Create options with provided settings
+        options = StructureOptions(
+            style=listing_style,
+            sort_order=sort_order,
+            show_size=show_size,
+            show_date=show_date,
+            max_depth=max_depth,
+            ignore_patterns=ignore_patterns or set(),
+            include_patterns=include_patterns or set(),
+            **kwargs
+        )
+
+        # Generate and return structure
+        printer = StructurePrinter(directory, options)
+        return printer.generate_structure()
+
+    except Exception as e:
+        if isinstance(e, ValueError):
+            raise  # Re-raise validation errors as-is
+
+        context = ErrorContext(
+            operation="generate_structure",
+            error_code=ErrorCode.PROCESS_EXECUTION,
+            path=directory,
+            details={
+                "style": style,
+                "sort_type": sort_type,
+                "show_size": show_size,
+                "show_date": show_date,
+                "max_depth": max_depth
+            }
+        )
+        raise ProcessingError(
+            f"Failed to generate structure: {str(e)}",
+            context=context,
+            original_error=e
+        ) from e

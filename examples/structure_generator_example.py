@@ -1,114 +1,177 @@
 """Example usage of the structure generator.
 
-This example demonstrates various ways to use the structure generator, from simple
-one-shot generation to more complex configurations. Each approach is suited for
-different use cases:
+This module demonstrates practical use cases for generating directory structure
+visualizations. The structure generator can be used both through its simple
+convenience function and its more powerful processor class, each suited for
+different needs.
 
-1. Basic Usage (quick_generate):
-   - Best for quick, one-off structure documentation
-   - Ideal for small to medium projects
-   - Good for generating simple documentation quickly
-   - Uses sensible defaults for most options
-   - Output is in tree format by default
+Common use cases:
+- Project Documentation: Create visual directory trees for documentation
+- Code Reviews: Generate structural overviews for review purposes
+- Project Analysis: Analyze and verify project organization
+- Documentation Generation: Create structure documentation automatically
 
-2. Advanced Usage (create_generator):
-   - Perfect for projects needing specific customization
-   - Ideal when you need to exclude certain paths/patterns
-   - Useful when you want to preview before generating
-   - Supports custom output formats (tree, markdown, plain)
-   - Can show file sizes and limit directory depth
-   - Good for generating documentation that will be maintained
+The examples show both basic usage for quick results and advanced usage for
+more complex requirements.
 
-3. Multiple Formats:
-   - Useful when documentation needs to serve multiple purposes
-   - Tree format: Best for command line viewing
-   - Markdown format: Ideal for GitHub/GitLab documentation
-   - Plain format: Good for processing with other tools
-   - Can generate all formats from the same configuration
-
-Path: examples/structure_generator_example.py
+Path: examples/structure_example.py
 """
 
 from pathlib import Path
-from pyweaver.structure_generator import (
-    create_generator,
-    quick_generate,
-    OutputFormat
+from datetime import datetime
+from pyweaver.processors import (
+    generate_structure,
+    StructurePrinter,
+    StructureOptions,
+    ListingStyle,
+    SortOrder
 )
 
-def basic_usage():
-    """Simple usage with quick_generate."""
-    # Generate structure for current directory
-    output_file = quick_generate(Path.cwd())
-    print(f"Generated structure at: {output_file}")
+def document_project_structure():
+    """Generate project structure documentation.
 
-def advanced_usage():
-    """More complex usage with custom configuration."""
-    # Create generator with custom config
-    generator = create_generator(
-        root_dir=Path("my_project"),
-        output_file=Path("docs/structure.md"),
-        format=OutputFormat.MARKDOWN,
+    This example shows how to create documentation-ready structure diagrams,
+    including both a tree view for visual reference and a Markdown format
+    for documentation files.
+    """
+    # Generate tree view for command line or console display
+    tree_structure = generate_structure(
+        "src",
+        style="tree",
         show_size=True,
-        max_depth=3,
-        exclude_patterns={
-            "**/__pycache__/*",
-            "**/.git/*",
-            "**/node_modules/*",
-            "**/*.pyc"
+        sort_type="alpha_dirs_first",
+        ignore_patterns={"**/__pycache__", "**/*.pyc", "**/.git"}
+    )
+    print("\nProject Structure (Tree View):")
+    print(tree_structure)
+
+    # Generate Markdown for documentation
+    md_structure = generate_structure(
+        "src",
+        style="markdown",
+        show_size=True,
+        max_depth=3  # Limit depth for readability
+    )
+
+    # Write to documentation file
+    docs_dir = Path("docs")
+    docs_dir.mkdir(exist_ok=True)
+
+    doc_content = f"""# Project Structure
+
+This document provides an overview of the project's directory structure.
+Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## Directory Tree
+{md_structure}
+
+## Structure Statistics
+The project structure was analyzed excluding the following patterns:
+- `**/__pycache__`
+- `**/*.pyc`
+- `**/.git`
+"""
+
+    (docs_dir / "structure.md").write_text(doc_content)
+    print("\nGenerated Markdown documentation in docs/structure.md")
+
+def analyze_project_organization():
+    """Analyze project organization using the StructurePrinter.
+
+    This example shows how to use the StructurePrinter class for more
+    detailed analysis of project structure, including gathering statistics
+    and filtering specific patterns.
+    """
+    # Create printer with custom options
+    options = StructureOptions(
+        style=ListingStyle.TREE,
+        sort_order=SortOrder.ALPHA_DIRS_FIRST,
+        show_size=True,
+        show_date=True,
+        max_depth=None,  # Show full depth
+        ignore_patterns={
+            "**/__pycache__",
+            "**/*.pyc",
+            "**/.git",
+            "**/node_modules",
+            "**/.venv"
         }
     )
 
-    # Preview structure first
-    preview = generator.preview()
-    print("Structure Preview:")
-    print(preview)
-    print("\nGenerate? (y/n)")
+    printer = StructurePrinter(".", options)
 
-    if input().lower() == 'y':
-        result = generator.generate()
-        if result.success:
-            print(f"Structure generated: {result.message}")
-            print(f"Files processed: {result.files_processed}")
-        else:
-            print(f"Generation failed: {result.message}")
-            for error in result.errors:
-                print(f"Error: {error}")
+    # Generate and print structure
+    structure = printer.generate_structure()
+    print("\nFull Project Structure:")
+    print(structure)
 
-def multiple_formats():
-    """Generate structure in different formats."""
-    root_dir = Path("my_project")
+    # Get and display statistics
+    stats = printer.get_statistics()
+    print("\nProject Statistics:")
+    print(f"Total Files: {stats['total_files']}")
+    print(f"Total Directories: {stats['total_dirs']}")
+    print(f"Total Size: {stats['total_size']:,} bytes")
+    print(f"Processing Time: {stats['processing_time']:.2f} seconds")
 
-    # Common configuration
-    config_base = {
-        "root_dir": root_dir,
-        "show_size": True,
-        "exclude_patterns": {"**/__pycache__/*", "**/.git/*"}
-    }
+    # Check for any errors
+    errors = printer.get_errors()
+    if errors:
+        print("\nWarnings/Errors encountered:")
+        for error in errors:
+            print(f"- {error}")
 
-    # Generate in each format
-    for format in OutputFormat:
-        output_file = root_dir / f"structure.{format.value}"
-        generator = create_generator(
-            output_file=output_file,
-            format=format,
-            **config_base
-        )
+def generate_focused_views():
+    """Generate focused views of specific project areas.
 
-        result = generator.generate()
-        print(f"{format.value}: {'Success' if result.success else 'Failed'}")
+    This example shows how to generate structure views focused on specific
+    parts of the project using include/exclude patterns.
+    """
+    # View source files only
+    src_structure = generate_structure(
+        ".",
+        style="tree",
+        include_patterns={"**/src/**/*.py", "**/src/**/*.tsx"},
+        ignore_patterns={"**/*test*", "**/__init__.py"},
+        show_size=True,
+        max_depth=4
+    )
+    print("\nSource Files Structure:")
+    print(src_structure)
+
+    # View test files only
+    test_structure = generate_structure(
+        ".",
+        style="tree",
+        include_patterns={"**/tests/**/*.py", "**/*test*.py"},
+        show_size=True,
+        sort_type="alpha"
+    )
+    print("\nTest Files Structure:")
+    print(test_structure)
+
+    # View documentation files
+    docs_structure = generate_structure(
+        ".",
+        style="markdown",
+        include_patterns={"**/*.md", "**/docs/**/*"},
+        show_date=True  # Show last modified dates
+    )
+    print("\nDocumentation Structure:")
+    print(docs_structure)
 
 if __name__ == "__main__":
-    print("1. Basic Usage")
-    print("2. Advanced Usage")
-    print("3. Multiple Formats")
-    choice = input("Select example to run (1-3): ")
+    print("Structure Generator Examples")
+    print("1. Document Project Structure")
+    print("2. Analyze Project Organization")
+    print("3. Generate Focused Views")
+
+    choice = input("\nSelect example (1-3): ")
 
     if choice == "1":
-        basic_usage()
+        document_project_structure()
     elif choice == "2":
-        advanced_usage()
+        analyze_project_organization()
     elif choice == "3":
-        multiple_formats()
+        generate_focused_views()
     else:
         print("Invalid choice")

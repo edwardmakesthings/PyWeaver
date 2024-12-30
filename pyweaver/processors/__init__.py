@@ -1,14 +1,55 @@
-"""Processors package for pyweaver."""
-from .structure import (
+"""File processing implementations and utilities.
+
+This module provides concrete implementations of file processors for:
+- Directory structure visualization
+- File combining and content processing
+- Init file generation and management
+
+Each processor provides both a comprehensive class-based interface for advanced
+usage and simple convenience functions for common cases. The processors handle:
+- File traversal and filtering
+- Content processing and transformation
+- Progress tracking and reporting
+- Error handling and recovery
+
+Example:
+    ```python
+    from pyweaver.processors import (
+        generate_structure,
+        combine_files,
+        generate_init_files
+    )
+
+    # Generate directory structure
+    print(generate_structure("src", style="tree", show_size=True))
+
+    # Combine Python files
+    combine_files("src", "combined.py", patterns=["*.py"])
+
+    # Generate init files
+    init_files = generate_init_files(
+        "src",
+        collect_submodules=True,
+        preview=True
+    )
+    for path, content in init_files.items():
+        print(f"Would update: {path}")
+    ```
+
+Path: pyweaver/processors/__init__.py
+"""
+
+from .structure_generator import (
     ListingStyle,
     SortOrder,
     StructureOptions,
     EntryInfo,
-    StructurePrinter
+    StructurePrinter,
+    generate_structure
 )
 from .file_combiner import (
     ContentMode,
-    SectionConfig,
+    FileSectionConfig,
     CombinerProgress,
     CombinerConfig,
     FileCombinerProcessor,
@@ -16,7 +57,8 @@ from .file_combiner import (
 )
 from .init_processor import (
     InitFileProgress,
-    InitFileProcessor
+    InitFileProcessor,
+    generate_init_files
 )
 
 __all__ = [
@@ -25,14 +67,16 @@ __all__ = [
     'StructureOptions',
     'EntryInfo',
     'StructurePrinter',
+    'generate_structure',
 
     'ContentMode',
-    'SectionConfig',
+    'FileSectionConfig',
     'CombinerProgress',
     'CombinerConfig',
     'FileCombinerProcessor',
     'combine_files',
 
     'InitFileProgress',
-    'InitFileProcessor'
+    'InitFileProcessor',
+    'generate_init_files'
 ]

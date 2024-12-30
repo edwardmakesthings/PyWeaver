@@ -1,103 +1,67 @@
 """Example usage of the file combiner.
 
-Demonstrates various approaches to combining files, each suited for
-different use cases:
+This example demonstrates different ways to combine files using both the
+simple convenience function and the more advanced processor interface.
+Each example illustrates different features and capabilities of the
+file combiner.
 
-1. Basic Usage (quick_combine):
-   - Best for simple file combining needs
-   - Combines all matching files in a directory
-   - Uses default settings for handling content
-   - Ideal for quick documentation tasks
-   - Good for creating simple combined outputs
+Key features demonstrated:
+- Basic file combining
+- Content processing modes
+- Pattern-based selection
+- Preview functionality
+- Tree structure generation
 
-2. Advanced Usage (create_combiner):
-   - Perfect for complex combining needs
-   - Supports multiple file patterns
-   - Can exclude specific paths/patterns
-   - Allows preview before combining
-   - Can generate directory structure
-   - Ideal for creating comprehensive documentation
-
-3. Different Modes:
-   - Shows how different handling modes affect output
-   - FULL: Keeps all content including comments
-   - NO_COMMENTS: Removes comments but keeps docstrings
-   - NO_DOCSTRINGS: Keeps comments but removes docstrings
-   - MINIMAL: Removes both comments and docstrings
-   - Good for understanding content handling options
-
-4. Selective Combining:
-   - Best for targeted file combining
-   - Can focus on specific file types
-   - Supports complex pattern matching
-   - Good for creating focused documentation
-   - Ideal for specific subsystem documentation
-   - Useful for combining related files only
-
-Common Use Cases:
-1. Documentation Generation:
-   - Combining source files for documentation
-   - Creating searchable codebases
-   - Generating training materials
-
-2. Code Analysis:
-   - Combining files for analysis tools
-   - Creating full project overviews
-   - Supporting code reviews
-
-3. Distribution:
-   - Creating single-file versions of multi-file projects
-   - Preparing code for sharing or publication
-   - Creating backup consolidations
+Example use cases:
+1. Documentation: Combine source files for documentation
+2. Analysis: Create consolidated files for code analysis
+3. Distribution: Generate combined versions of multi-file projects
+4. Backup: Create consolidated backups of important files
 
 Path: examples/file_combiner_example.py
 """
 
-from pathlib import Path
-from pyweaver.file_combiner import (
-    create_combiner,
-    quick_combine,
-    FileHandlingMode,
-    CombinerConfig
+from pyweaver.processors import (
+    combine_files,
+    FileCombinerProcessor,
+    ContentMode
 )
 
 def basic_usage():
-    """Simple file combining with quick_combine."""
-    result = quick_combine(
-        input_dir=Path("my_project"),
-        output_file=Path("combined_output.txt")
+    """Simple file combining."""
+    result = combine_files(
+        "src",
+        "combined.txt",
+        patterns=["*.py"],
+        remove_comments=True
     )
 
     if result.success:
         print(f"Combined {result.files_processed} files")
-        print(f"Output written to: {result.files_written}")
+        print("Output written to: combined.txt")
     else:
         print(f"Combining failed: {result.message}")
 
 def advanced_usage():
-    """Advanced usage with custom configuration."""
-    combiner = create_combiner(
-        root_dir=Path("my_project"),
-        patterns=["*.py", "*.tsx", "*.ts"],
-        output_file=Path("docs/combined.txt"),
-        mode=FileHandlingMode.NO_COMMENTS,  # Remove comments but keep docstrings
-        exclude_patterns={
-            "**/node_modules/*",
-            "**/__pycache__/*",
-            "**/build/*",
-            "**/dist/*"
-        },
-        generate_tree=True  # Also generate directory structure
+    """Advanced usage with configuration."""
+    # Create processor with specific configuration
+    processor = FileCombinerProcessor(
+        root_dir="src",
+        output_file="docs/combined.txt",
+        patterns=["*.py", "*.ts", "*.tsx"],
+        remove_comments=True,
+        remove_docstrings=False,
+        generate_tree=True
     )
 
-    # Preview before generating
+    # Preview changes first
     print("Preview of combined output:")
     print("-" * 40)
-    print(combiner.preview())
+    print(processor.preview())
     print("-" * 40)
 
     if input("\nGenerate combined file? (y/n): ").lower() == 'y':
-        result = combiner.combine()
+        result = processor.process()
         if result.success:
             print(f"Successfully combined {result.files_processed} files")
         else:
@@ -105,52 +69,29 @@ def advanced_usage():
             for error in result.errors:
                 print(f"Error: {error}")
 
-def different_modes():
-    """Demonstrate different file handling modes."""
-    input_dir = Path("my_project")
-    test_file = Path("test_output")
+def content_modes():
+    """Demonstrate different content processing modes."""
+    modes = [
+        (ContentMode.FULL, "full"),
+        (ContentMode.NO_COMMENTS, "no_comments"),
+        (ContentMode.NO_DOCSTRINGS, "no_docstrings"),
+        (ContentMode.MINIMAL, "minimal")
+    ]
 
-    # Create output directory
-    test_file.parent.mkdir(parents=True, exist_ok=True)
+    for mode, name in modes:
+        output_file = f"output_{name}.txt"
 
-    for mode in FileHandlingMode:
-        output_file = test_file / f"combined_{mode.value}.txt"
-
-        combiner = create_combiner(
-            root_dir=input_dir,
+        result = combine_files(
+            "src",
+            output_file,
             patterns=["*.py"],
-            output_file=output_file,
-            mode=mode
+            content_mode=mode
         )
 
-        result = combiner.combine()
-        print(f"\nMode {mode.value}:")
-        print(f"Success: {result.success}")
-        print(f"Files processed: {result.files_processed}")
-        if not result.success:
-            print(f"Errors: {result.errors}")
-
-def selective_combining():
-    """Demonstrate selective file combining with patterns."""
-    combiner = create_combiner(
-        root_dir=Path("my_project"),
-        patterns=["src/**/*.ts", "src/**/*.tsx"],  # TypeScript/React files
-        output_file=Path("combined_frontend.txt"),
-        mode=FileHandlingMode.NO_COMMENTS,
-        exclude_patterns={"**/tests/*", "**/stories/*"},
-        generate_tree=True
-    )
-
-    # Preview the files that would be included
-    preview = combiner.preview()
-    print("Files to be combined:")
-    print(preview)
-
-    if input("\nProceed with combining? (y/n): ").lower() == 'y':
-        result = combiner.combine()
+        print(f"\nMode {name}:")
         if result.success:
-            print(f"Combined {result.files_processed} files")
-            print("Also generated tree structure at: combined_frontend.tree.txt")
+            print(f"Generated {output_file}")
+            print(f"Files processed: {result.files_processed}")
         else:
             print(f"Failed: {result.message}")
 
@@ -158,18 +99,15 @@ if __name__ == "__main__":
     print("File Combiner Examples")
     print("1. Basic Usage")
     print("2. Advanced Usage")
-    print("3. Different Modes")
-    print("4. Selective Combining")
+    print("3. Content Modes")
 
-    choice = input("\nSelect example (1-4): ")
+    choice = input("\nSelect example (1-3): ")
 
     if choice == "1":
         basic_usage()
     elif choice == "2":
         advanced_usage()
     elif choice == "3":
-        different_modes()
-    elif choice == "4":
-        selective_combining()
+        content_modes()
     else:
         print("Invalid choice")
