@@ -12,11 +12,10 @@ import textwrap
 from typing import Generator, Any
 import pytest
 
+from pyweaver.config.combiner import ContentMode, FileSectionConfig
 from pyweaver.processors import (
     FileCombinerProcessor,
-    combine_files,
-    ContentMode,
-    FileSectionConfig
+    combine_files
 )
 
 @pytest.fixture
@@ -272,8 +271,12 @@ def test_content_modes(mixed_source_files: Path):
         result = combiner.process()
         assert result.success
 
+        # Write output
+        combiner.write()
+        assert output_file.exists()
         content = output_file.read_text()
 
+        # Verify content based on mode
         if mode == ContentMode.FULL:
             # Should include all comments and docstrings
             assert '"""Utility functions for user management."""' in content
@@ -336,16 +339,20 @@ def test_section_formatting(mixed_source_files: Path):
 
 def test_preview_and_tree(mixed_source_files: Path):
     """Test preview functionality and tree generation."""
+    output_file = mixed_source_files / "combined.txt"
+    preview_file = mixed_source_files / "preview.txt"
+
     combiner = FileCombinerProcessor(
         root_dir=mixed_source_files,
-        output_file=mixed_source_files / "combined.txt",
+        output_file=output_file,
         patterns=["*.*"],
         generate_tree=True
     )
 
-    # Test preview
-    preview = combiner.preview()
+    # Test preview with file output
+    preview = combiner.preview(output_file=preview_file)
     assert isinstance(preview, str)
+    assert preview_file.exists()
     assert "UserList.tsx" in preview
     assert "styles.scss" in preview
     assert "user_utils.py" in preview
@@ -454,20 +461,32 @@ def test_convenience_function(mixed_source_files: Path):
     """Test the combine_files convenience function."""
     output_file = mixed_source_files / "combined.txt"
 
+    # Test preview only
     result = combine_files(
         mixed_source_files,
         output_file,
         patterns=["*.tsx", "*.vue"],
-        remove_comments=True
+        print_output=True,
+        print_only=True
+    )
+
+    assert result.success
+    assert not output_file.exists()  # Shouldn't write file in preview mode
+
+    # Test actual combining
+    result = combine_files(
+        mixed_source_files,
+        output_file,
+        patterns=["*.tsx", "*.vue"]
     )
 
     assert result.success
     assert result.files_processed == 2  # UserList.tsx and UserDetail.vue
+    assert output_file.exists()
 
     content = output_file.read_text()
     assert "UserList" in content
     assert "UserDetail" in content
-    assert "// Variables" not in content  # Comments should be removed
 
 if __name__ == "__main__":
     pytest.main([__file__])

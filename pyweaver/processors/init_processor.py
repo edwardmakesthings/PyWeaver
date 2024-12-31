@@ -16,10 +16,10 @@ Path: pyweaver/processors/init_processor.py
 """
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, List, Any, Union
 from dataclasses import dataclass
 
-from pyweaver.common.base import BaseProcessor, ProcessorProgress
+from pyweaver.common.base import BaseProcessor, ProcessorProgress, ProcessorResult
 from pyweaver.common.tracking import TrackerType
 from pyweaver.common.errors import (
     ProcessingError, ErrorContext, ErrorCode, FileError
@@ -147,22 +147,26 @@ class InitFileProcessor(BaseProcessor):
             ) from e
 
     def preview(self,
-                print_changes: bool = False,
-                output_file: Optional[str | Path] = None) -> Dict[Path, str]:
+                output_file: Optional[Path | str] = None,
+                print_preview: bool = False,
+                return_dict: bool = False
+    ) -> Union[str, Dict[Path, str]]:
         """Preview changes that would be made to init files.
 
-        This method performs a dry run of the processing operation, collecting
-        all changes that would be made without actually writing files.
+        This method performs a dry run of the processing operation, generating a
+        formatted preview of all changes that would be made.
 
         Args:
-            print_changes: If True, print changes to console
-            output_file: Optional file path to save preview output
+            output_file: Optional path to save preview content
+            print_preview: If True, print preview to console
+            return_dict: If True, return changes as dictionary instead of formatted text
 
         Returns:
-            Dict mapping file paths to their proposed content
+            Formatted preview of all changes
 
         Raises:
             ProcessingError: If preview generation fails
+            FileError: If preview file cannot be written
         """
         try:
             # Ensure we're in preview mode
@@ -175,10 +179,10 @@ class InitFileProcessor(BaseProcessor):
                 self.process()
 
                 # Generate preview output if requested
-                if print_changes or output_file:
+                if print_preview or output_file:
                     preview_text = self._format_preview()
 
-                    if print_changes:
+                    if print_preview:
                         print(preview_text)
 
                     if output_file:
@@ -186,7 +190,7 @@ class InitFileProcessor(BaseProcessor):
                         output_path.parent.mkdir(parents=True, exist_ok=True)
                         output_path.write_text(preview_text, encoding="utf-8")
 
-                return self._changes.copy()
+                return self._changes.copy() if return_dict else preview_text
 
             finally:
                 # Restore original dry_run setting
@@ -621,6 +625,38 @@ class InitFileProcessor(BaseProcessor):
 
         return "\n".join(preview_lines)
 
+    def _write_output(self, path: Path) -> None:
+        """Write all init files to disk.
+
+        Implements BaseProcessor._write_output() for init file generation.
+        Note that path parameter is ignored as init files are written to
+        their respective locations.
+        """
+        try:
+            for file_path, content in self._changes.items():
+                try:
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(content)
+                    logger.info("Wrote init file: %s", file_path)
+                except Exception as e:
+                    raise FileError(
+                        f"Failed to write init file: {e}",
+                        path=file_path,
+                        operation="write_init"
+                    ) from e
+
+        except Exception as e:
+            context = ErrorContext(
+                operation="write_init_files",
+                error_code=ErrorCode.FILE_WRITE,
+                path=path  # Original target path
+            )
+            raise ProcessingError(
+                "Failed to write init files",
+                context=context,
+                original_error=e
+            ) from e
+
     def __repr__(self) -> str:
         """Get string representation of processor state."""
         return comprehensive_repr(
@@ -632,35 +668,42 @@ class InitFileProcessor(BaseProcessor):
 
 def generate_init_files(
     root_dir: str | Path,
+    print_output: bool = False,
+    print_only: bool = False,
     docstring: Optional[str] = None,
     collect_submodules: bool = True,
     exclude_patterns: Optional[Set[str]] = None,
     preview: bool = False,
     config_path: Optional[str | Path] = None,
-    **kwargs: dict
+    include_submodules: Optional[List[str]] = None,
+    order_policy: Optional[str] = None,
+    exports_blacklist: Optional[Set[str]] = None,
+    sections: Optional[Dict[str, Any]] = None,
+    exact_path_only: bool = False,
+    export_mode: Optional[str] = None
 ) -> Dict[Path, str]:
     """Generate or update __init__.py files across a project.
 
     This convenience function provides a simpler interface to the InitFileProcessor
     for common use cases. It properly handles configuration settings and allows
-    for customization through kwargs.
+    for customization through explicit parameters.
 
     Args:
         root_dir: Root directory of the project
+        print_output: If True, print init files as 1 file to console
+        print_only: If True, only print output and don't write files
         docstring: Optional default docstring for __init__.py files
         collect_submodules: Whether to collect exports from submodules. This affects
                           whether the processor will look for exports in subdirectories
         exclude_patterns: Patterns for paths to exclude from processing
         preview: If True, return changes without writing files
         config_path: Optional path to configuration file
-        **kwargs: Additional configuration options including:
-                - include_submodules: List of specific submodules to include
-                - order_policy: How to order imports ("dependency_first", "alphabetical", etc.)
-                - exports_blacklist: Set of names to exclude from exports
-                - generate_tree: Whether to include directory tree in comments
-                - sections: Dictionary of section configurations
-                - exact_path_only: Whether to use exact path matching
-                - export_mode: How to determine exports
+        include_submodules: List of specific submodules to include
+        order_policy: How to order imports ("dependency_first", "alphabetical", etc.)
+        exports_blacklist: Set of names to exclude from exports
+        sections: Dictionary of section configurations
+        exact_path_only: Whether to use exact path matching
+        export_mode: How to determine exports
 
     Returns:
         Dictionary mapping file paths to their content (if preview=True)
@@ -683,7 +726,6 @@ def generate_init_files(
             collect_submodules=True,
             exclude_patterns={"tests", "docs"},
             order_policy="alphabetical",
-            generate_tree=True,
             include_submodules=["core", "utils"]
         )
         ```
@@ -697,53 +739,50 @@ def generate_init_files(
         )
 
         # Update configuration with provided settings
-        processor.init_config.global_settings.collect_from_submodules = collect_submodules
+        settings = processor.init_config.global_settings
+
+        # Base settings
+        settings.collect_from_submodules = collect_submodules
 
         if docstring is not None:
-            processor.init_config.global_settings.docstring = docstring
+            settings.docstring = docstring
 
         if exclude_patterns:
-            processor.init_config.global_settings.excluded_paths.update(exclude_patterns)
+            settings.excluded_paths.update(exclude_patterns)
 
-        # Process additional configuration options from kwargs
-        config_mappings = {
-            'include_submodules': 'include_submodules',
-            'order_policy': 'order_policy',
-            'exports_blacklist': 'exports_blacklist',
-            'generate_tree': 'generate_tree',
-            'sections': 'sections',
-            'exact_path_only': 'exact_path_only',
-            'export_mode': 'export_mode'
-        }
+        # Optional configuration settings
+        if include_submodules is not None:
+            settings.include_submodules = include_submodules
 
-        for kwarg, config_attr in config_mappings.items():
-            if kwarg in kwargs:
-                setattr(processor.init_config.global_settings, config_attr, kwargs[kwarg])
+        if order_policy is not None:
+            settings.order_policy = order_policy
+
+        if exports_blacklist is not None:
+            settings.exports_blacklist = exports_blacklist
+
+        if sections is not None:
+            settings.sections = sections
+
+        settings.exact_path_only = exact_path_only
+
+        if export_mode is not None:
+            settings.export_mode = export_mode
 
         # Process files
-        if preview:
-            return processor.preview()
-        else:
-            processor.process()
-            return {
-                path: "Updated" if path in processor.get_changes() else "Unchanged"
-                for path in processor.get_changes()
-            }
+        # result = processor.process()
+
+        # Handle output options
+        if print_output or print_only:
+            processor.preview(print_preview=True)
+
+        if not print_only:
+            processor.write()
+
+        return processor.get_changes()
 
     except Exception as e:
-        context = ErrorContext(
-            operation="generate_init_files",
-            error_code=ErrorCode.PROCESS_EXECUTION,
-            path=root_dir,
-            details={
-                "preview": preview,
-                "config_path": str(config_path) if config_path else None,
-                "collect_submodules": collect_submodules,
-                "kwargs": str(kwargs)
-            }
+        return ProcessorResult(
+            success=False,
+            message=str(e),
+            errors=[str(e)]
         )
-        raise ProcessingError(
-            "Failed to generate init files",
-            context=context,
-            original_error=e
-        ) from e

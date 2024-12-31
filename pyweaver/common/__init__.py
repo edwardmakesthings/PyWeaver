@@ -40,6 +40,9 @@ from .base import (
     ProcessorResult,
     BaseProcessor
 )
+from .enums import (
+    ListingStyle
+)
 from .errors import (
     ErrorCategory,
     ErrorCode,
@@ -64,6 +67,8 @@ __all__ = [
     'ProcessorProgress',
     'ProcessorResult',
     'BaseProcessor',
+
+    'ListingStyle',
 
     'ErrorCategory',
     'ErrorCode',

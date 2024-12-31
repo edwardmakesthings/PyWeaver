@@ -24,7 +24,6 @@ from pyweaver.processors import (
     generate_init_files,
     InitFileProcessor
 )
-from pyweaver.config import ImportOrderPolicy
 
 
 def basic_usage():
@@ -32,12 +31,14 @@ def basic_usage():
     result = generate_init_files(
         "src",
         docstring="Package initialization.",
-        collect_submodules=True
+        collect_submodules=True,
+        print_output=True  # Show what will be generated
     )
 
-    print("\nGenerated init files:")
-    for path, status in result.items():
-        print(f"{path}: {status}")
+    if result.success:
+        print(f"\nGenerated {result.files_processed} init files")
+    else:
+        print(f"\nGeneration failed: {result.message}")
 
 def advanced_usage():
     """Advanced usage with custom configuration."""
@@ -45,45 +46,47 @@ def advanced_usage():
     processor = InitFileProcessor(
         root_dir="src",
         config_path="init_config.json",
-        dry_run=True  # Preview mode
     )
 
     # Preview changes first
-    changes = processor.preview()
+    processor.preview(print_preview=True)
 
-    print("\nPreview of changes:")
-    for path, content in changes.items():
-        print(f"\n--- {path} ---")
-        print(content)
-        print("-" * 40)
-
-    # Generate if approved
     if input("\nGenerate files? (y/n): ").lower() == 'y':
-        # Switch to write mode
-        processor.dry_run = False
+        # Process and write files
         result = processor.process()
-
         if result.success:
-            print(f"Successfully generated {result.files_processed} files")
+            processor.write()
+            print(f"\nSuccessfully generated {result.files_processed} files")
         else:
-            print(f"Generation failed: {result.message}")
+            print(f"\nGeneration failed: {result.message}")
             for error in result.errors:
                 print(f"Error: {error}")
 
 def selective_generation():
     """Generate init files with specific settings."""
-    result = generate_init_files(
+    # Preview changes first
+    generate_init_files(
         "src",
         docstring="Project initialization.",
         collect_submodules=True,
         exclude_patterns={"tests", "docs"},
-        order_policy=ImportOrderPolicy.DEPENDENCY_FIRST,
-        generate_tree=True,
-        include_submodules=["core", "utils"]
+        print_output=True,
+        print_only=True
     )
 
-    for path, status in result.items():
-        print(f"{path}: {status}")
+    # Generate if approved
+    if input("\nGenerate files? (y/n): ").lower() == 'y':
+        result = generate_init_files(
+            "src",
+            docstring="Project initialization.",
+            collect_submodules=True,
+            exclude_patterns={"tests", "docs"}
+        )
+
+        if result.success:
+            print(f"\nGenerated {result.files_processed} init files")
+        else:
+            print(f"\nGeneration failed: {result.message}")
 
 if __name__ == "__main__":
     print("Init Generator Examples")

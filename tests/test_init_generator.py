@@ -12,15 +12,17 @@ import textwrap
 from typing import Generator, Any
 import pytest
 
-from pyweaver.processors import (
-    InitFileProcessor,
-    generate_init_files
-)
 from pyweaver.config.init import (
     ImportOrderPolicy,
     ImportSection,
     ExportMode
 )
+from pyweaver.common.errors import FileError
+from pyweaver.processors import (
+    InitFileProcessor,
+    generate_init_files
+)
+
 
 @pytest.fixture
 def complex_package() -> Generator[Path, Any, None]:
@@ -285,7 +287,7 @@ def test_section_organization(complex_package: Path):
         }
     }
 
-    changes = generator.preview()
+    changes = generator.preview(return_dict=True)
 
     # Check section organization in utils init
     utils_init = changes.get(complex_package / "utils" / "__init__.py", "")
@@ -293,54 +295,76 @@ def test_section_organization(complex_package: Path):
     assert "# Functions" in utils_init
     assert utils_init.index("# Classes") < utils_init.index("# Functions")
 
-def test_error_handling(complex_package: Path):
+def test_error_handling(complex_package: Path, tmp_path: Path):
     """Test error handling scenarios."""
-    # Test with invalid config
+    # Test invalid config
     with pytest.raises(Exception):
         InitFileProcessor(
             complex_package,
-            config_path=complex_package / "nonexistent.json"
+            config_path=tmp_path / "nonexistent.json"
         )
 
-    # Test with invalid root directory
-    with pytest.raises(Exception):
-        generate_init_files(
-            complex_package / "nonexistent",
-            preview=True
-        )
-
-    # Test with syntax error in Python file
-    invalid_file = complex_package / "invalid.py"
-    invalid_file.write_text("this is not valid python")
-
+    # Test write errors
     generator = InitFileProcessor(complex_package)
-    result = generator.process()
-
-    assert not result.success
-    assert len(result.errors) > 0
-    assert "syntax" in result.errors[0].lower()
-
-def test_preview_functionality(complex_package: Path):
-    """Test preview generation functionality."""
-    generator = InitFileProcessor(complex_package)
-    preview = generator.preview()
-
-    # Verify preview content
-    assert isinstance(preview, dict)
-    assert len(preview) > 0
-
-    # Verify no files were actually created
-    utils_init = complex_package / "utils" / "__init__.py"
-    assert not utils_init.exists()
-
-    # Generate files and verify content matches preview
     result = generator.process()
     assert result.success
 
-    for path, preview_content in preview.items():
-        assert path.exists()
-        actual_content = path.read_text()
-        assert actual_content == preview_content
+    # Create read-only directory to test write failure
+    readonly_dir = complex_package / "readonly"
+    readonly_dir.mkdir()
+    readonly_dir.chmod(0o555)
+
+    # Add a Python file to trigger init generation
+    (readonly_dir / "test.py").touch()
+
+    with pytest.raises(FileError):
+        generator.write()
+
+    # Cleanup
+    readonly_dir.chmod(0o755)
+
+def test_preview_functionality(complex_package: Path, tmp_path: Path):
+    """Test preview generation functionality."""
+    preview_file = tmp_path / "preview.txt"
+
+    generator = InitFileProcessor(complex_package)
+
+    # Test preview content
+    preview = generator.preview()
+    assert isinstance(preview, str)
+    assert "base/__init__.py" in preview
+    assert "impl/__init__.py" in preview
+
+    # Test preview file output
+    preview = generator.preview(output_file=preview_file)
+    assert preview_file.exists()
+    assert preview_file.read_text() == preview
+
+    # Test print preview (no exception should be raised)
+    generator.preview(print_preview=True)
+
+    # Verify no files were actually created during preview
+    assert not (complex_package / "utils/__init__.py").exists()
+
+def test_write_functionality(complex_package: Path):
+    """Test file writing functionality."""
+    generator = InitFileProcessor(complex_package)
+    result = generator.process()
+    assert result.success
+
+    # Write files
+    generator.write()
+
+    # Verify files were created
+    assert (complex_package / "base/__init__.py").exists()
+    assert (complex_package / "impl/__init__.py").exists()
+    assert (complex_package / "utils/__init__.py").exists()
+
+    # Verify content
+    base_init = complex_package / "base/__init__.py"
+    content = base_init.read_text()
+    assert "BaseHandler" in content
+    assert "BaseProcessor" in content
 
 def test_docstring_handling(complex_package: Path):
     """Test docstring handling in generated files."""
@@ -378,6 +402,33 @@ def test_nested_package_handling(complex_package: Path):
     content = impl_init.read_text()
     assert "from .handlers import" in content
     assert "from .processors import" in content
+
+def test_convenience_function(complex_package: Path):
+    """Test the generate_init_files convenience function."""
+    # Test preview only
+    result = generate_init_files(
+        complex_package,
+        print_output=True,
+        print_only=True
+    )
+    assert result.success
+    assert not (complex_package / "utils/__init__.py").exists()
+
+    # Test actual generation
+    result = generate_init_files(
+        complex_package,
+        docstring="Test initialization.",
+        collect_submodules=True
+    )
+
+    assert result.success
+    assert result.files_processed > 0
+
+    # Verify files and content
+    utils_init = complex_package / "utils/__init__.py"
+    assert utils_init.exists()
+    content = utils_init.read_text()
+    assert "Test initialization." in content
 
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -44,6 +44,13 @@ class ConfigValidationModel(BaseModel, Generic[SettingsT]):
     global_settings: SettingsT
     path_specific: Dict[Path, SettingsT] = Field(default_factory=dict)
 
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_encoders": {
+            Path: str
+        }
+    }
+
     @field_validator('path_specific')
     @classmethod
     def validate_paths(cls, v: Dict) -> Dict[Path, Any]:
@@ -88,19 +95,15 @@ class ConfigValidationModel(BaseModel, Generic[SettingsT]):
         Raises:
             ValueError: If settings are invalid
         """
-        settings_type = get_args(cls.__orig_bases__[0])[0]
-        if not isinstance(v, settings_type):
-            raise ValueError(
-                f"Global settings must be instance of {settings_type.__name__}"
-            )
-        return v
-
-    class Config:
-        """Pydantic configuration."""
-        arbitrary_types_allowed = True
-        json_encoders = {
-            Path: str
-        }
+        try:
+            settings_type = get_args(cls.__orig_bases__[0])[0]
+            if not isinstance(v, settings_type):
+                raise ValueError(
+                    f"Global settings must be instance of {settings_type.__name__}"
+                )
+        except (IndexError, AttributeError):
+            settings_type = cls.__annotations__.get('global_settings', dict)
+        return settings_type(**v) if isinstance(v, dict) else v
 
 class BaseConfig(ABC, Generic[SettingsT]):
     """Abstract base class for configuration management.

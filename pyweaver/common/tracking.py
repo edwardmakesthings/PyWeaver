@@ -155,14 +155,14 @@ class FileTracker:
 
             logger.debug(
                 "Initialized FileTracker with type=%s, max_attempts=%d",
-                type.value, max_attempts
+                type_items.value, max_attempts
             )
 
         except Exception as e:
             context = ErrorContext(
                 operation="init_tracker",
                 error_code=ErrorCode.PROCESS_INIT,
-                details={"type": type.value, "max_attempts": max_attempts}
+                details={"type": type_items.value, "max_attempts": max_attempts}
             )
             raise ProcessingError(
                 "Failed to initialize tracker",
@@ -290,6 +290,7 @@ class FileTracker:
                 context=context,
                 original_error=e
             ) from e
+
     def mark_ignored(self, path: Path) -> None:
         """Mark an item as ignored, updating its status.
 

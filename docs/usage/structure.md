@@ -114,10 +114,10 @@ structure = generate_structure(
 For more control, use the `StructurePrinter` class directly:
 
 ```python
+from pyweaver.common.enums import ListingStyle
 from pyweaver.processors import (
     StructurePrinter,
     StructureOptions,
-    ListingStyle,
     SortOrder
 )
 

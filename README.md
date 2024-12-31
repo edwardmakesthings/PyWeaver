@@ -26,7 +26,8 @@ pip install pyweaver
 ### Generate Project Structure
 
 ```python
-from pyweaver.processors import generate_structure, ListingStyle
+from pyweaver.common.enums import ListingStyle
+from pyweaver.processors import generate_structure
 
 # Generate tree structure
 structure = generate_structure(
@@ -91,10 +92,10 @@ if result.success:
 The structure generator offers multiple output styles and comprehensive configuration:
 
 ```python
+from pyweaver.common.enums import ListingStyle
 from pyweaver.processors import (
     StructurePrinter,
     StructureOptions,
-    ListingStyle,
     SortOrder
 )
 

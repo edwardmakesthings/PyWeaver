@@ -26,7 +26,7 @@ import time
 from pyweaver.config.path import PathConfig
 from pyweaver.common.tracking import FileTracker, TrackerType, TrackerStats
 from pyweaver.common.errors import (
-    ProcessingError, ErrorContext, ErrorCode, StateError, ValidationError
+    ProcessingError, ErrorContext, ErrorCode, FileError, StateError, ValidationError
 )
 
 logger = logging.getLogger(__name__)
@@ -82,6 +82,7 @@ class ProcessorProgress:
     def is_complete(self) -> bool:
         """Check if processing is complete."""
         return (self.processed_items + self.ignored_items + self.error_items) == self.total_items
+
 @dataclass
 class ProcessorResult:
     """Results from a processing operation.
@@ -305,6 +306,66 @@ class BaseProcessor(ABC):
             return False
 
         return True
+
+    def write(self, output_file: Optional[Path | str] = None) -> None:
+        """Write processed content to disk.
+
+        This method writes the processed content to the specified file or
+        the default output location. It should be called after process().
+
+        Args:
+            output_file: Optional override for output location. If None,
+                        uses the default configured output location.
+
+        Raises:
+            StateError: If called before processing
+            FileError: If writing fails
+        """
+        try:
+            if self.state not in {ProcessorState.PROCESSING, ProcessorState.COMPLETED}:
+                raise StateError(
+                    "Must call process() before write()",
+                    current_state=self.state.value
+                )
+
+            target_path = Path(output_file) if output_file else self.config.output_file
+            if not target_path:
+                raise ValidationError("No output file specified")
+
+            try:
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                self._write_output(target_path)
+                logger.info("Wrote output to %s", target_path)
+            except Exception as e:
+                raise FileError(
+                    f"Failed to write output: {e}",
+                    path=target_path,
+                    operation="write_output"
+                ) from e
+
+        except Exception as e:
+            context = ErrorContext(
+                operation="write",
+                error_code=ErrorCode.FILE_WRITE,
+                path=output_file
+            )
+            raise ProcessingError(
+                "Failed to write output",
+                context=context,
+                original_error=e
+            ) from e
+
+    @abstractmethod
+    def _write_output(self, path: Path) -> None:
+        """Implement specific output writing logic.
+
+        Args:
+            path: Path to write output to
+
+        Raises:
+            FileError: If writing fails
+        """
+        raise NotImplementedError
 
     def pause(self) -> None:
         """Pause processing temporarily.

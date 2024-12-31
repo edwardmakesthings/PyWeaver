@@ -21,10 +21,10 @@ Example use cases:
 Path: examples/file_combiner_example.py
 """
 
+from pyweaver.config.combiner import ContentMode
 from pyweaver.processors import (
     combine_files,
-    FileCombinerProcessor,
-    ContentMode
+    FileCombinerProcessor
 )
 
 def basic_usage():
@@ -32,8 +32,7 @@ def basic_usage():
     result = combine_files(
         "src",
         "combined.txt",
-        patterns=["*.py"],
-        remove_comments=True
+        patterns=["*.py"]
     )
 
     if result.success:
@@ -49,20 +48,18 @@ def advanced_usage():
         root_dir="src",
         output_file="docs/combined.txt",
         patterns=["*.py", "*.ts", "*.tsx"],
-        remove_comments=True,
-        remove_docstrings=False,
+        content_mode=ContentMode.NO_COMMENTS,
         generate_tree=True
     )
 
     # Preview changes first
     print("Preview of combined output:")
-    print("-" * 40)
-    print(processor.preview())
-    print("-" * 40)
+    processor.preview(print_preview=True)
 
     if input("\nGenerate combined file? (y/n): ").lower() == 'y':
         result = processor.process()
         if result.success:
+            processor.write()  # Write to configured output file
             print(f"Successfully combined {result.files_processed} files")
         else:
             print(f"Combining failed: {result.message}")
@@ -80,15 +77,15 @@ def content_modes():
 
     for mode, name in modes:
         output_file = f"output_{name}.txt"
+        print(f"\nMode: {name}")
 
         result = combine_files(
             "src",
             output_file,
             patterns=["*.py"],
-            content_mode=mode
+            print_output=True  # Show preview
         )
 
-        print(f"\nMode {name}:")
         if result.success:
             print(f"Generated {output_file}")
             print(f"Files processed: {result.files_processed}")

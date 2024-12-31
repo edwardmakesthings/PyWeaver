@@ -19,11 +19,11 @@ Path: examples/structure_example.py
 
 from pathlib import Path
 from datetime import datetime
+from pyweaver.common.enums import ListingStyle
 from pyweaver.processors import (
     generate_structure,
     StructurePrinter,
     StructureOptions,
-    ListingStyle,
     SortOrder
 )
 
@@ -31,48 +31,28 @@ def document_project_structure():
     """Generate project structure documentation.
 
     This example shows how to create documentation-ready structure diagrams,
-    including both a tree view for visual reference and a Markdown format
-    for documentation files.
+    including both a tree view for visual output and Markdown format for
+    documentation files.
     """
-    # Generate tree view for command line or console display
-    tree_structure = generate_structure(
+    # Generate tree view for console display
+    structure = generate_structure(
         "src",
         style="tree",
         show_size=True,
         sort_type="alpha_dirs_first",
-        ignore_patterns={"**/__pycache__", "**/*.pyc", "**/.git"}
+        ignore_patterns={"**/__pycache__", "**/*.pyc", "**/.git"},
+        print_output=True  # Print to console
     )
-    print("\nProject Structure (Tree View):")
-    print(tree_structure)
 
     # Generate Markdown for documentation
-    md_structure = generate_structure(
+    generate_structure(
         "src",
         style="markdown",
         show_size=True,
-        max_depth=3  # Limit depth for readability
+        max_depth=3,  # Limit depth for readability
+        output_file="docs/structure.md"  # Write to file
     )
 
-    # Write to documentation file
-    docs_dir = Path("docs")
-    docs_dir.mkdir(exist_ok=True)
-
-    doc_content = f"""# Project Structure
-
-This document provides an overview of the project's directory structure.
-Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-## Directory Tree
-{md_structure}
-
-## Structure Statistics
-The project structure was analyzed excluding the following patterns:
-- `**/__pycache__`
-- `**/*.pyc`
-- `**/.git`
-"""
-
-    (docs_dir / "structure.md").write_text(doc_content)
     print("\nGenerated Markdown documentation in docs/structure.md")
 
 def analyze_project_organization():
@@ -103,7 +83,12 @@ def analyze_project_organization():
     # Generate and print structure
     structure = printer.generate_structure()
     print("\nFull Project Structure:")
+    print("-" * 80)
     print(structure)
+    print("-" * 80)
+
+    # Write full analysis to file
+    printer.write("docs/project_analysis.txt")
 
     # Get and display statistics
     stats = printer.get_statistics()
@@ -127,37 +112,37 @@ def generate_focused_views():
     parts of the project using include/exclude patterns.
     """
     # View source files only
-    src_structure = generate_structure(
+    generate_structure(
         ".",
         style="tree",
         include_patterns={"**/src/**/*.py", "**/src/**/*.tsx"},
         ignore_patterns={"**/*test*", "**/__init__.py"},
         show_size=True,
-        max_depth=4
+        max_depth=4,
+        output_file="docs/source_structure.txt",
+        print_output=True  # Show while generating
     )
-    print("\nSource Files Structure:")
-    print(src_structure)
 
     # View test files only
-    test_structure = generate_structure(
+    generate_structure(
         ".",
         style="tree",
         include_patterns={"**/tests/**/*.py", "**/*test*.py"},
         show_size=True,
-        sort_type="alpha"
+        sort_type="alpha",
+        output_file="docs/test_structure.txt",
+        print_output=True
     )
-    print("\nTest Files Structure:")
-    print(test_structure)
 
     # View documentation files
-    docs_structure = generate_structure(
+    generate_structure(
         ".",
         style="markdown",
         include_patterns={"**/*.md", "**/docs/**/*"},
-        show_date=True  # Show last modified dates
+        show_date=True,  # Show last modified dates
+        output_file="docs/documentation_structure.md",
+        print_output=True
     )
-    print("\nDocumentation Structure:")
-    print(docs_structure)
 
 if __name__ == "__main__":
     print("Structure Generator Examples")

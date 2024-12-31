@@ -20,7 +20,7 @@ import re
 import time
 from dataclasses import dataclass
 
-from pyweaver.processors.file_combiner import CombinerConfig, ContentMode
+from pyweaver.config.combiner import CombinerConfig, ContentMode
 from pyweaver.processors.structure_generator import (
     StructurePrinter, StructureOptions
 )

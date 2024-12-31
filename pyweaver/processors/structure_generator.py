@@ -46,22 +46,12 @@ from pathlib import Path
 import time
 from typing import List, Set, Any, Optional, Dict
 
+from pyweaver.common.enums import ListingStyle
 from pyweaver.common.errors import (
     ProcessingError, ErrorContext, ErrorCode, FileError
 )
 
 logger = logging.getLogger(__name__)
-
-class ListingStyle(Enum):
-    """Output style for structure listings.
-
-    This enum defines different ways to format the directory structure,
-    allowing for various visualization needs.
-    """
-    TREE = "tree"          # Traditional tree with branches
-    FLAT = "flat"          # Flat list of paths
-    INDENTED = "indented"  # Indented list without branches
-    MARKDOWN = "markdown"  # Markdown-compatible list
 
 class SortOrder(Enum):
     """Sort order for directory entries.
@@ -142,6 +132,21 @@ class EntryInfo:
     modified: float = field(default_factory=time.time)
     error: Optional[str] = None
 
+class TreeChars(str, Enum):
+    """Characters used for tree-style output.
+
+    This enum defines the characters used for tree-style output
+    to represent directory structures with proper indentation.
+    """
+    PIPE = "│"   # U+2502
+    TEE  = "├──" # U+251C U+2500 U+2500
+    LAST = "└──" # U+2514 U+2500 U+2500
+    SPACE = "    "
+
+    def __str__(self) -> str:
+        """Return the actual character value."""
+        return self.value
+
 class StructurePrinter:
     """Generates formatted directory structure listings.
 
@@ -191,24 +196,48 @@ class StructurePrinter:
             root_dir: Directory to analyze
             options: Configuration options
         """
-        self.root_dir = Path(root_dir)
-        self.options = options or StructureOptions()
+        try:
+            self.root_dir = Path(root_dir).resolve()
+            if not self.root_dir.exists():
+                raise FileError(
+                    f"Directory does not exist: {root_dir}",
+                    path=self.root_dir,
+                    operation="init"
+                )
 
-        # Tracking collections
-        self._entries: Dict[Path, EntryInfo] = {}
-        self._errors: List[str] = []
+            self.options = options or StructureOptions()
 
-        # Statistics
-        self._total_files = 0
-        self._total_dirs = 0
-        self._total_size = 0
-        self._start_time = 0
-        self._end_time = 0
+            # Ensure UTF-8 encoding for tree characters
+            self._ensure_encoding()
 
-        logger.debug(
-            "Initialized StructurePrinter for %s (%s style)",
-            self.root_dir, self.options.style.value
-        )
+            # Initialize tracking collections
+            self._entries: Dict[Path, EntryInfo] = {}
+            self._errors: List[str] = []
+
+            # Statistics
+            self._total_files = 0
+            self._total_dirs = 0
+            self._total_size = 0
+            self._start_time = 0
+            self._end_time = 0
+
+            logger.debug(
+                "Initialized StructurePrinter for %s (%s style)",
+                self.root_dir, self.options.style.value
+            )
+        except Exception as e:
+            raise ProcessingError(
+                f"Failed to initialize structure printer: {e}",
+                operation="init",
+                path=root_dir
+            ) from e
+
+    def _ensure_encoding(self) -> None:
+        """Ensure proper encoding for tree characters."""
+        import sys
+        if sys.stdout.encoding.lower() != 'utf-8':
+            import codecs
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
 
     def generate_structure(self) -> str:
         """Generate formatted directory structure.
@@ -224,6 +253,12 @@ class StructurePrinter:
         """
         try:
             self._start_time = time.time()
+
+            # Reset counters before scan
+            self._total_files = 0
+            self._total_dirs = 0
+            self._total_size = 0
+            self._entries.clear()
 
             # Scan directory structure
             self._scan_directory(self.root_dir)
@@ -260,6 +295,42 @@ class StructurePrinter:
                 original_error=e
             ) from e
 
+    def write(self, output_file: Path | str) -> None:
+        """Write structure to file.
+
+        This method generates the structure and writes it to the specified file.
+        It handles directory creation and provides proper error context.
+
+        Args:
+            output_file: Path to write structure to
+
+        Raises:
+            FileError: If file cannot be written
+            ProcessingError: If structure generation fails
+        """
+        try:
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Generate structure and write with explicit UTF-8 encoding
+            content = self.generate_structure()
+            output_path.write_text(content, encoding='utf-8', newline='\n')
+
+            logger.info("Wrote structure to %s", output_path)
+
+        except Exception as e:
+            context = ErrorContext(
+                operation="write_structure",
+                error_code=ErrorCode.FILE_WRITE,
+                path=output_file
+            )
+            raise FileError(
+                f"Failed to write structure file: {e}",
+                path=Path(output_file),
+                context=context,
+                original_error=e
+            ) from e
+
     def _scan_directory(self, path: Path, depth: int = 0) -> None:
         """Scan a directory and collect entry information.
 
@@ -280,45 +351,53 @@ class StructurePrinter:
                 depth > self.options.max_depth):
                 return
 
-            # Process directory entries
-            for item in path.iterdir():
-                try:
-                    # Check ignore patterns
-                    if self._should_ignore(item):
-                        continue
+            try:
+                # Process directory entries
+                for item in path.iterdir():
+                    try:
+                        # Check ignore patterns
+                        if self._should_ignore(item):
+                            continue
 
-                    # Collect entry information
-                    info = EntryInfo(
-                        path=item,
-                        is_dir=item.is_dir()
-                    )
+                        # Collect entry information
+                        info = EntryInfo(
+                            path=item,
+                            is_dir=item.is_dir()
+                        )
 
-                    if not info.is_dir:
-                        # Collect file information
-                        info.size = item.stat().st_size
-                        info.modified = item.stat().st_mtime
-                        self._total_files += 1
-                        self._total_size += info.size
-                    else:
-                        self._total_dirs += 1
+                        if not info.is_dir:
+                            # Collect file information
+                            try:
+                                stat = item.stat()
+                                info.size = stat.st_size
+                                info.modified = stat.st_mtime
+                                self._total_files += 1
+                                self._total_size += info.size
+                            except (OSError, PermissionError) as e:
+                                info.error = f"Cannot access file: {e}"
+                        else:
+                            self._total_dirs += 1
 
-                    self._entries[item] = info
+                        self._entries[item] = info
 
-                    # Recurse into directories
-                    if info.is_dir:
-                        self._scan_directory(item, depth + 1)
+                        # Recurse into directories
+                        if info.is_dir:
+                            try:
+                                self._scan_directory(item, depth + 1)
+                            except (OSError, PermissionError) as e:
+                                info.error = f"Cannot access directory: {e}"
 
-                except Exception as e:
-                    error = f"Error processing {item}: {str(e)}"
-                    self._errors.append(error)
-                    logger.warning(error)
+                    except Exception as e:
+                        error = f"Error processing {item}: {str(e)}"
+                        self._errors.append(error)
+                        logger.warning(error)
 
-                    # Add error entry
-                    self._entries[item] = EntryInfo(
-                        path=item,
-                        is_dir=item.is_dir(),
-                        error=str(e)
-                    )
+            except (OSError, PermissionError) as e:
+                raise FileError(
+                    f"Cannot access directory: {e}",
+                    path=path,
+                    operation="scan_directory"
+                )
 
         except Exception as e:
             context = ErrorContext(
@@ -382,17 +461,19 @@ class StructurePrinter:
             List of formatted lines
         """
         lines = []
-        indent = "    " * indent_level
-        connector = "└── " if is_last else "├── "
+        indent = TreeChars.SPACE.value * indent_level
+        # Ensure we use the actual unicode characters, not their names
+        line_prefix = f"{indent}{TreeChars.LAST.value if is_last else TreeChars.TEE.value}"
 
         # Format entry name with optional information
         entry_text = self._format_entry_name(entry)
-        lines.append(f"{prefix}{indent}{connector}{entry_text}")
+        lines.append(f"{prefix}{line_prefix} {entry_text}")
 
         # Process children if directory
         if entry.is_dir:
             children = self._get_sorted_entries(entry.path)
-            # child_indent = indent + ("    " if is_last else "│   ") # Not used?
+            child_indent = (TreeChars.SPACE.value if is_last else
+                        f"{TreeChars.PIPE.value}   ")
 
             for i, child in enumerate(children):
                 child_lines = self._format_tree_entry(
@@ -422,8 +503,9 @@ class StructurePrinter:
         ):
             try:
                 rel_path = entry.path.relative_to(self.root_dir)
+                rel_path_str = str(rel_path).replace('\\', '/')
                 entry_text = self._format_entry_name(entry)
-                lines.append(f"{rel_path} {entry_text}")
+                lines.append(f"{rel_path_str} {entry_text}")
             except ValueError:
                 continue
 
@@ -528,7 +610,7 @@ class StructurePrinter:
             List of formatted lines
         """
         lines = []
-        indent = "    " * indent_level
+        indent = str(TreeChars.SPACE) * indent_level
 
         # Format current entry
         entry_text = self._format_entry_name(entry)
@@ -580,65 +662,6 @@ class StructurePrinter:
 
         return lines
 
-    def _get_sorted_entries(self, directory: Path) -> List[EntryInfo]:
-        """Get sorted list of entries for a directory.
-
-        This method retrieves and sorts directory entries according to
-        the configured sort order, handling various sorting strategies.
-
-        Args:
-            directory: Directory to get entries for
-
-        Returns:
-            Sorted list of entry information
-        """
-        # Collect entries for this directory
-        entries = [
-            entry for entry in self._entries.values()
-            if entry.path.parent == directory
-        ]
-
-        # Apply sorting based on configuration
-        if self.options.sort_order == SortOrder.ALPHA:
-            entries.sort(key=lambda e: str(e.path).lower())
-        elif self.options.sort_order == SortOrder.ALPHA_DIRS_FIRST:
-            entries.sort(key=lambda e: (not e.is_dir, str(e.path).lower()))
-        elif self.options.sort_order == SortOrder.ALPHA_FILES_FIRST:
-            entries.sort(key=lambda e: (e.is_dir, str(e.path).lower()))
-        elif self.options.sort_order == SortOrder.MODIFIED:
-            entries.sort(key=lambda e: e.modified)
-        elif self.options.sort_order == SortOrder.SIZE:
-            entries.sort(key=lambda e: (e.size if not e.is_dir else 0))
-
-        return entries
-
-    def _should_ignore(self, path: Path) -> bool:
-        """Check if a path should be ignored.
-
-        This method applies the configured ignore and include patterns
-        to determine if a path should be excluded from the listing.
-
-        Args:
-            path: Path to check
-
-        Returns:
-            True if path should be ignored
-        """
-        # Check include patterns first if specified
-        if self.options.include_patterns:
-            included = any(
-                path.match(pattern)
-                for pattern in self.options.include_patterns
-            )
-            if not included:
-                return True
-
-        # Check ignore patterns
-        return any(
-            path.match(pattern)
-            for pattern in self.options.ignore_patterns
-        )
-
     def _format_size(self, size: int) -> str:
         """Format a file size according to configuration.
 
@@ -671,6 +694,76 @@ class StructurePrinter:
 
         return f"{size:,.1f} {units[unit_index]}"
 
+    def _format_date(self, timestamp: float) -> str:
+        """Format date according to configuration."""
+        try:
+            return time.strftime(
+                self.options.date_format,
+                time.localtime(timestamp)
+            )
+        except Exception as e:
+            logger.warning("Date formatting failed: %s", e)
+            return str(timestamp)
+
+    def _get_sorted_entries(self, directory: Path) -> List[EntryInfo]:
+        """Get sorted list of entries for a directory.
+
+        This method retrieves and sorts directory entries according to
+        the configured sort order, handling various sorting strategies.
+
+        Args:
+            directory: Directory to get entries for
+
+        Returns:
+            Sorted list of entry information
+        """
+        # Collect entries for this directory
+        entries = [
+            entry for entry in self._entries.values()
+            if entry.path.parent.resolve() == directory.resolve()
+        ]
+
+        # Create sort key function based on configuration
+        key_funcs = {
+            SortOrder.ALPHA: lambda e: str(e.path).lower(),
+            SortOrder.ALPHA_DIRS_FIRST: lambda e: (not e.is_dir, str(e.path).lower()),
+            SortOrder.ALPHA_FILES_FIRST: lambda e: (e.is_dir, str(e.path).lower()),
+            SortOrder.MODIFIED: lambda e: e.modified,
+            SortOrder.SIZE: lambda e: (e.size if not e.is_dir else 0)
+        }
+
+        sort_key = key_funcs.get(self.options.sort_order, key_funcs[SortOrder.ALPHA])
+        return sorted(entries, key=sort_key)
+
+    def _should_ignore(self, path: Path) -> bool:
+        """Check if a path should be ignored.
+
+        This method applies the configured ignore and include patterns
+        to determine if a path should be excluded from the listing.
+
+        Args:
+            path: Path to check
+
+        Returns:
+            True if path should be ignored
+        """
+        relative_path = str(path.resolve().relative_to(self.root_dir.resolve()))
+
+        # Check include patterns first if specified
+        if self.options.include_patterns:
+            included = any(
+                path.match(pattern) or relative_path.startswith(pattern.rstrip('*'))
+                for pattern in self.options.include_patterns
+            )
+            if not included:
+                return True
+
+        # Check ignore patterns
+        return any(
+            path.match(pattern) or relative_path.startswith(pattern.rstrip('*'))
+            for pattern in self.options.ignore_patterns
+        )
+
     def get_statistics(self) -> Dict[str, Any]:
         """Get statistics about the processed structure.
 
@@ -680,14 +773,21 @@ class StructurePrinter:
         Returns:
             Dictionary of statistics
         """
-        return {
+        stats = {
             "total_files": self._total_files,
             "total_dirs": self._total_dirs,
             "total_size": self._total_size,
             "total_entries": len(self._entries),
-            "processing_time": self._end_time - self._start_time,
+            "processing_time": self._end_time - self._start_time if self._end_time else 0,
             "error_count": len(self._errors)
         }
+
+        # Reset counters after reading
+        self._total_files = 0
+        self._total_dirs = 0
+        self._total_size = 0
+
+        return stats
 
     def get_errors(self) -> List[str]:
         """Get list of errors encountered during processing.
@@ -708,8 +808,10 @@ class StructurePrinter:
         )
 
 def generate_structure(
-    directory: str | Path,
-    *,
+    input_dir: str | Path,
+    output_file: Optional[str | Path] = None,
+    print_output: bool = False,
+    print_only: bool = False,
     style: str = "tree",
     show_size: bool = False,
     show_date: bool = False,
@@ -717,15 +819,24 @@ def generate_structure(
     ignore_patterns: Optional[Set[str]] = None,
     include_patterns: Optional[Set[str]] = None,
     sort_type: str = "alpha",
-    **kwargs: dict
+    show_permissions: bool = False,
+    size_format: str = "auto",
+    date_format: str = "%Y-%m-%d %H:%M",
+    max_name_length: Optional[int] = None,
+    include_empty: bool = False
 ) -> str:
     """Generate a formatted directory structure listing.
 
     This convenience function provides a simpler interface to generate directory
-    structure listings.
+    structure listings with options for output control.
 
     Args:
-        directory: Root directory to analyze
+        input_dir: Root directory to analyze
+        output_file: Path to save the structure output. If None, output is only returned
+                    as a string
+        print_output: If True, print the structure to console
+        print_only: If True, generate the structure but don't write to file even if
+                     output_file is specified
         style: Output style ("tree", "flat", "indented", "markdown")
         show_size: Whether to show file sizes
         show_date: Whether to show modification dates
@@ -733,8 +844,12 @@ def generate_structure(
         ignore_patterns: Set of glob patterns for files/directories to ignore
         include_patterns: Set of glob patterns to explicitly include
         sort_type: Sort order ("alpha", "alpha_dirs_first", "alpha_files_first",
-                  "modified", "size")
-        **kwargs: Additional options passed to StructureOptions
+                             "modified", "size")
+        show_permissions: Whether to show file permissions
+        size_format: How to format file sizes
+        date_format: How to format dates
+        max_name_length: Maximum length for file names
+        include_empty: Whether to include empty directories
 
     Returns:
         Formatted structure representation
@@ -742,6 +857,29 @@ def generate_structure(
     Raises:
         ProcessingError: If structure generation fails
         ValueError: If invalid style or sort type specified
+        FileError: If file output fails
+
+    Example:
+        ```python
+        # Just return the structure
+        structure = generate_structure("src")
+
+        # Save to file and show on console
+        structure = generate_structure(
+            "src",
+            output_file="docs/structure.md",
+            print_output=True,
+            style="markdown"
+        )
+
+        # Preview what would be written but don't actually write
+        structure = generate_structure(
+            "src",
+            output_file="docs/structure.md",
+            print_output=True,
+            print_only=True
+        )
+        ```
     """
     try:
         # Validate and convert style
@@ -771,27 +909,90 @@ def generate_structure(
             max_depth=max_depth,
             ignore_patterns=ignore_patterns or set(),
             include_patterns=include_patterns or set(),
-            **kwargs
+            show_permissions=show_permissions,
+            size_format=size_format,
+            date_format=date_format,
+            max_name_length=max_name_length,
+            include_empty=include_empty
         )
 
-        # Generate and return structure
-        printer = StructurePrinter(directory, options)
-        return printer.generate_structure()
+        # Generate structure
+        printer = StructurePrinter(input_dir, options)
+        structure = printer.generate_structure()
+
+        # Handle console output if requested
+        if print_output:
+            print("\nDirectory Structure:")
+            print("-" * 80)
+            print(structure)
+            print("-" * 80)
+
+        # Handle file output if requested and not preview
+        if output_file and not print_only:
+            try:
+                output_path = Path(output_file)
+                try:
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                except OSError as e:
+                    # If it's read-only, you'll get an OSError here
+                    context = ErrorContext(
+                        operation="create_directory",
+                        error_code=ErrorCode.FILE_PERMISSION,
+                        path=output_file
+                    )
+                    raise FileError(
+                        f"Do not have permission to create directory: {e}",
+                        path=output_path,
+                        context=context,
+                        original_error=e
+                    ) from e
+
+                try:
+                    output_path.write_text(structure, encoding="utf-8")
+                except OSError as e:
+                    # If directory is read-only, writing fails here
+                    context = ErrorContext(
+                        operation="write_structure",
+                        error_code=ErrorCode.FILE_PERMISSION,
+                        path=output_file
+                    )
+                    raise FileError(
+                        f"Do not have permission to write to directory: {e}",
+                        path=output_path,
+                        context=context,
+                        original_error=e
+                    ) from e
+
+                logger.info("Wrote structure to %s", output_path)
+
+            except Exception as e:
+                context = ErrorContext(
+                    operation="write_structure",
+                    error_code=ErrorCode.FILE_WRITE,
+                    path=output_file
+                )
+                raise FileError(
+                    f"Failed to write structure file: {e}",
+                    path=output_path,
+                    context=context,
+                    original_error=e
+                ) from e
+
+        return structure
 
     except Exception as e:
-        if isinstance(e, ValueError):
-            raise  # Re-raise validation errors as-is
+        if isinstance(e, (ValueError, FileError)):
+            raise  # Re-raise validation and file errors directly
 
         context = ErrorContext(
             operation="generate_structure",
             error_code=ErrorCode.PROCESS_EXECUTION,
-            path=directory,
+            path=input_dir,
             details={
                 "style": style,
                 "sort_type": sort_type,
-                "show_size": show_size,
-                "show_date": show_date,
-                "max_depth": max_depth
+                "output_file": str(output_file) if output_file else None,
+                "preview_only": print_only
             }
         )
         raise ProcessingError(
